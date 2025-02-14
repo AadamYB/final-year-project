@@ -1,2 +1,2 @@
-# Final-Year-Yroject
+# Final-Year-Project
 CI/CD system with live debugging capablities
