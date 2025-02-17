@@ -12,10 +12,15 @@ def api_root():
 def api_events():
     # event_data = request.get_json()
     # return json.jsonify({"message": "Webhook received!"}), 200
-    if request.headers['Content-Type'] == 'application/json':
-        event_data = request.get_json()
-        print(event_data)
-        return json.jsonify(event_data), 200
+    # if request.headers['Content-Type'] == 'application/json':
+    #     event_data = request.get_json()
+    #     print(event_data)
+    #     return json.jsonify(event_data), 200
+    event = request.json
+    if event:
+        print("Received Webhook event: " , event)
+        return json.dumps(event), 200
+    return json.dumps({"message": "No event data received"}), 400
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
