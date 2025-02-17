@@ -18,7 +18,8 @@ def api_events():
     #     return json.jsonify(event_data), 200
     event = request.json
     if event:
-        print("Received Webhook event: " , event)
+        title = event.get('pull_request', {}).get('title')
+        print("Received Webhook event: " , title)
         return json.dumps(event), 200
     return json.dumps({"message": "No event data received"}), 400
 
