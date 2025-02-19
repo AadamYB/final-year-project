@@ -1,6 +1,7 @@
 from flask import Flask
 from flask import request
 from flask import json
+import requests
 
 app = Flask(__name__)
 
@@ -20,6 +21,19 @@ def api_events():
     if event:
         title = event.get('pull_request', {}).get('title')
         print("Received Webhook event: " , title)
+
+        diff_url = event.get('pull_request', {}).get('diff_url', '')
+
+        if diff_url:
+            response = requests.get(diff_url, headers={'Accept': 'application/vnd.github.v3.diff'})
+            if response.status_code == 200:
+                diff_content = response.text
+                print("Fetched Diff Content:\n", diff_content)
+            else:
+                print(f"Error fetching diff content: {response.status_code}")
+        else:
+            print("Diff URL not found in the event.")
+
         return json.dumps(event), 200
     return json.dumps({"message": "No event data received"}), 400
 
