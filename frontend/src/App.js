@@ -1,5 +1,7 @@
 import logo from './logo.svg';
 import styles from './styles/App.module.css';
+import SemiCircularProgressBar from './Components/SemiCircularProgressBar';
+
 console.log('Imported styles:', styles);
 
 function App() {
@@ -19,8 +21,34 @@ function App() {
           Learn React today
         </a>
       </header>
+      <div className={styles.section}>
+        <div className={styles.container}>
+          <div className={styles.progressBarContainer}>
+            <h1>unit-tests</h1>
+            <SemiCircularProgressBar value={5} gauge="Low" />
+          </div>
+        </div>
+        <div className={styles.container}>
+          <div className={styles.progressBarContainer}>
+            <SemiCircularProgressBar value={7} gauge="Moderate" />
+          </div>
+        </div>
+        <div className={styles.container}>
+          <div className={styles.progressBarContainer}>
+            <SemiCircularProgressBar value={9} gauge="High" />
+          </div>
+        </div>
+        <div className={styles.container}>
+          <div className={styles.progressBarContainer}>
+            <SemiCircularProgressBar value={11} gauge="Very High" />
+          </div>
+        </div>
+      </div>
+
     </div>
   );
+  
 }
+
 
 export default App;

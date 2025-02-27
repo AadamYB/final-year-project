@@ -1,0 +1,9 @@
+/* PROGRESS BAR CSS */
+.progressBarContainer{
+    display: flex;
+    position: relative;
+    margin-left: 16px;
+    margin-right: 16px;
+    margin-top: 25px;
+  }
+  
