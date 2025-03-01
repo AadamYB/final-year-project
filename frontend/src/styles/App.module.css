@@ -1,10 +1,10 @@
 /* / Styles sheet for main app page */
-.App {
+/* .App { UNCOMMENT
   display: grid;
   grid-template-columns:auto;
   text-align: center;
   background-color: #607886;
-}
+} */
 /*
 .Applogo {
   height: 40vmin;
@@ -50,7 +50,7 @@
   margin: 0;
 } */
 
-.menu{
+/* .menu{ UNCOMMENT
   grid-row: 1/3;
   grid-column: 1;
   width: 90px;
@@ -61,10 +61,10 @@
   margin: 10px;
   margin-top: 12px;
   margin-bottom: 14px;
-  margin-right: 10px;
-}
+  margin-right: 10;
+} */
 
-.container{
+/* .container{ UNCOMMENT
   width: 235px;
   height: 242px;
   border-radius: 24px;
@@ -74,7 +74,7 @@
   margin-top: auto;
   margin-bottom: auto;
   padding: 10px;
-} 
+}  */
 /* .container {
   width: 235px;
   min-height: 242px;
@@ -88,7 +88,7 @@
   justify-content: center; 
 } */
 
-.section{
+/* .section{ UNCOMMENT
   display: grid;
   grid-column: 2;
   grid-template-columns: repeat(4, 1fr);
@@ -108,4 +108,87 @@
   font-size: 20px;
   font-weight: bold;
   color: #000000;
+} */
+
+/* Base container for the entire app */
+.App {
+  display: grid;
+  grid-template-columns: auto 1fr;  /* menu in first column, scalable content in second */
+  gap: 1rem;
+  text-align: center;
+  background-color: #607886;
+  padding: 1rem;
+  min-height: 100vh;
+}
+
+/* Menu – fixed width but scalable height */
+.menu {
+  grid-row: 1 / span 2;   /* Spanning two rows */
+  grid-column: 1;
+  width: 90px;
+  /* Instead of a fixed height, use min-height and let content flow */
+  min-height: 300px;
+  flex-shrink: 0;
+  border-radius: 20px;
+  background: #4A575A;
+  margin: 0.5rem;
+}
+
+/* Each progress container */
+.container {
+  width: 100%;
+  max-width: 235px; /* Allow it to shrink if needed */
+  /* Use aspect-ratio (supported in modern browsers) to maintain shape */
+  aspect-ratio: 235 / 242;
+  border-radius: 24px;
+  background: #607884;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  margin: auto;
+}
+
+/* Section for progress bar items – uses a flexible grid */
+.section {
+  grid-column: 2;
+  display: grid;
+  /* auto-fit will fill the row with as many items as possible 
+     with each item being at least 235px wide */
+  grid-template-columns: repeat(auto-fit, minmax(235px, 1fr));
+  gap: 20px;
+  background: #4A575A;
+  border-radius: 20px;
+  margin: 10px;
+  padding: 1rem;
+}
+
+/* Headings inside .section */
+.section h1 { 
+  text-align: center;
+  font-size: 1.25rem; /* Relative size */
+  font-weight: bold;
+  color: #000000;
+}
+
+/* Media queries for responsiveness */
+@media (max-width: 768px) {
+  .App {
+    grid-template-columns: 1fr;  /* Stack menu above content on small screens */
+    grid-template-rows: auto auto;
+  }
+  
+  .menu {
+    width: 60px;
+    margin: 0.5rem auto;
+  }
+  
+  .container {
+    max-width: 200px;
+  }
+  
+  .section {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
 }
