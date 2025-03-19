@@ -36,7 +36,7 @@ def api_events():
         checkout_pr_branch(local_repo_path, pr_branch)
 
         # # Step 3: Trigger Build & Test
-        # build_project(local_repo_path)
+        build_project(local_repo_path)
         # run_tests(local_repo_path)
 
         return json.dumps({"status": "PR processed"}), 200
