@@ -1,4 +1,4 @@
-from flask import Flask ,request ,json
+from flask import Flask, request, json
 import requests
 import os
 import subprocess
@@ -24,7 +24,7 @@ def api_events():
 
         print(f"Received PR event for PR#{pr_number} in {repo_title} for branch {pr_branch}.")
 
-        # Clone the repository
+        # First we clone the repository if it does not already exist, if so then pull changes
         local_repo_path = os.path.join(REPO_DIRECTORY, repo_title.replace("/", "_"))
         
         if not os.path.exists(local_repo_path):
@@ -32,7 +32,7 @@ def api_events():
         else:
             pull_changes(local_repo_path)
 
-        # Step 2: Checkout PR branch
+        # Then checkout the PR branch
         checkout_pr_branch(local_repo_path, pr_branch)
 
         # # Step 3: Trigger Build & Test
@@ -45,28 +45,38 @@ def api_events():
 
 
 def clone_repo(repo_url, local_repo_path):
-    """ Clone a GitHub repository to a local directory """
+    """ Clones a GitHub repository to a local directory """
     print(f"Cloning {repo_url} into {local_repo_path}")
     subprocess.run(["git", "clone", repo_url, local_repo_path], check=True)
 
 def pull_changes(local_repo_path):
-    """ Pull latest changes from the repository """
+    """ Pulls latest changes from the repository """
     print(f"Pulling latest changes in {local_repo_path}")
     subprocess.run(["git", "-C", local_repo_path, "pull"], check=True)
 
 def checkout_pr_branch(local_repo_path, pr_branch):
-    """ Checkout the correct PR branch """
+    """ Checkouts the correct branch for the Pull Request"""
     print(f"Checking out PR branch: {pr_branch}")
     subprocess.run(["git", "-C", local_repo_path, "fetch", "origin"], check=True)
     subprocess.run(["git", "-C", local_repo_path, "checkout", pr_branch], check=True)
 
 def build_project(local_repo_path):
-    """ Build the project (Modify this based on tech stack) """
+    """ Builds the project inside a Docker container """
     print(f"Building project in {local_repo_path}")
-    subprocess.run(["docker", "build", "-t", "project-image", local_repo_path], check=True)
+
+    if not os.path.exists("Dockerfile"):
+        print("❌ ERROR! No Dockerfile found in the repository.")
+        print("⚠️ Please add a Dockerfile to the root of the repository to build the project.")
+        return
+    
+    try:
+        subprocess.run(["docker", "build", "-t", "project-image", local_repo_path], check=True)
+        print("✅ Hooray! Build Successful!")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to build the project. Error: {e}")
 
 def run_tests(local_repo_path):
-    """ Run tests inside the Docker container """
+    """ Runs tests inside the Docker container """
     print(f"Running tests for {local_repo_path}")
     subprocess.run(["docker", "run", "--rm", "project-image", "pytest"], check=True)
 
