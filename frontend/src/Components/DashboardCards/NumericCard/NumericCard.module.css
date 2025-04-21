@@ -1,0 +1,21 @@
+.card {
+    background-color: #607884;
+    border-radius: 24px;
+    width: 235px;
+    height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+  }
+  
+  .label {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .value {
+    font-size: 2rem;
+    font-weight: bold;
+  }
