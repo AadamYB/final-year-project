@@ -21,7 +21,7 @@ const SemiCircularProgressBar = ({ value, gauge, unit, denominator}) => {
       case "Very High":
         return "#C20000"; // Red for Very High
       default:
-        return "#80A0B3"; // Default colour
+        return "#858585"; // Default colour
     }
   };
 
@@ -36,7 +36,7 @@ const SemiCircularProgressBar = ({ value, gauge, unit, denominator}) => {
             strokeLinecap: 'butt',
             transform:"rotate(-108deg)",
             transformOrigin: "center center",
-            stroke: "#80A0B3"
+            stroke: "#858585"
           },
           path: {
             strokeLinecap: 'butt',
@@ -45,6 +45,7 @@ const SemiCircularProgressBar = ({ value, gauge, unit, denominator}) => {
             stroke: getProgressBarColour(gauge) // Function that fills the path in a specific colour
           },
           text: {
+            fontSize: 15,
             fill: getProgressBarColour(gauge),
           },
         }}

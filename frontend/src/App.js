@@ -1,7 +1,5 @@
 // import logo from './logo.svg';
 import styles from './styles/App.module.css';
-// import SemiCircularProgressBar from './Components/SemiCircularProgressBar'; //DELETE
-
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Dashboard from './pages/Dashboard';
 // not yet ready
@@ -15,12 +13,12 @@ function App() {
   return (
     <Router>
       <div className={styles.App}>
-        <div className={styles.menu}>
+        <div className={styles.MenuBar}>
           <MenuBar />
         </div>
 
         <Routes>
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard Repo_name={"REPO NAME"}/>} />
           {/* <Route path="/pipeline" element={<Pipeline />} /> */}
           {/* <Route path="/debug/:id" element={<Debug />} /> */}
         </Routes>

@@ -1,0 +1,102 @@
+.container {
+    width: 230px;
+    height: 230px;
+    border-radius: 24px;
+    background: #535353;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+
+/* Section for progress bar items – uses a flexible grid */
+
+.headerSection {
+    grid-column: 2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 10px;
+    border-radius: 20px;
+    background: #858585;
+    padding: 10px;
+}
+
+/* Filter button/dropdown css styling*/
+.filter{
+    width: 20rem;
+    margin-right: 10px;
+}
+
+.headerSection h1{
+    font-size: 80px;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+}
+
+/* Section for progress bar items – uses a flexible grid */
+.section {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: auto auto auto auto auto;
+    gap: 10px;
+    background: #858585;
+    border-radius: 20px;
+    margin: 10px;
+    padding: 10px;
+}
+
+/* Headings inside .section */
+.section h1 { 
+    font-size: 20px;
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.listContainer {
+    grid: 1;
+    grid-row: span 2;
+    width: 270px;
+    height: 450px;
+    border-radius: 24px;
+    background: #535353;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    margin-top: 10px;
+    margin-left: 10px;
+    margin-bottom: 10px;
+    padding: 10px;
+    overflow-y: auto; 
+    overflow-x: hidden;
+}
+
+/* section 2/ or the pipeline and barchart section */
+.section2 {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 10px;
+    background: #858585;
+    border-radius: 20px;
+    margin: 10px;
+    padding: 10px;
+}
+
+.pipelineContainer{
+    background: #535353;
+    border-radius: 20px;
+    height: 350px;
+    width: 530px;
+}
+
+.barChartContainer{
+    background: #535353;
+    border-radius: 20px;
+    height: 350px;
+    width: 730px;
+}

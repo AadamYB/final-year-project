@@ -1,21 +1,25 @@
+/* CSS file for the numeric card component */
+
 .card {
-    background-color: #607884;
-    border-radius: 24px;
-    width: 235px;
-    height: 120px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: space-around;
     align-items: center;
-    color: white;
+    height: 100%;
+    width: 100%;
+    padding: 10px;
   }
   
   .label {
     font-size: 1.1rem;
+    color: #ffffff;
     margin-bottom: 0.5rem;
+    font-weight: 600;
   }
   
   .value {
-    font-size: 2rem;
+    margin-top: 30px;
+    font-size: clamp(1rem, 8vw, 100px);
     font-weight: bold;
+    color: #000000;
   }
