@@ -1,0 +1,60 @@
+.page {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.page hr {
+    border: none;
+    border-top: 2px solid black; 
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+  
+/* Left panel for the build list*/
+.listContainer {
+    width: 300px;
+    height: 97.7vh;
+    border-radius: 10px;
+    background: #B0B0B0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-top: 10px;
+    margin-right: 10px;
+    box-sizing: border-box;
+}
+  
+/* Right panel for the debug console and stream logs and the breakpoint configurator */
+.mainContentContainer {
+    flex-grow: 1;
+    height: 97.7vh;
+    background: #B0B0B0;
+    margin: 10px 10px 10px 0;
+    border-radius: 10px;
+    overflow-y: auto;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.statusIcon {
+    width: 64px;
+    height: 64px;
+    margin-right: 8px;
+}
+
+.buildTitle {
+    display: flex;
+    align-items: center;
+    font-size: 52px;
+    font-weight: normal;
+    margin: 0;
+}
+  
+.buildText {
+    line-height: 1.2;
+}
