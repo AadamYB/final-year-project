@@ -17,7 +17,7 @@ const Dashboard = ({ Repo_name }) => {
     ];
   return (
 
-    <div className="">
+    <div>
         <div className={styles.headerSection}>
             <h1>{Repo_name}</h1>
             <Select 
