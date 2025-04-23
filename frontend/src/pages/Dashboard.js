@@ -1,7 +1,7 @@
 import React from "react";
 import styles from "../styles/Dashboard.module.css";
 import Select from "react-select";
-import SemiCircularProgressBar from "../Components/SemiCircularProgressBar";
+import SemiCircularProgressBar from "../Components/DashboardCards/ProgressBar/SemiCircularProgressBar";
 import NumericCard from "../Components/DashboardCards/NumericCard/NumericCard";
 import BuildCard from "../Components/DashboardCards/BuildCard/BuildCard";
 
