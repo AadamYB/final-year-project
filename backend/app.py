@@ -201,8 +201,10 @@ def run_tests(local_repo_path):
     print("STDOUT:\n", result.stdout or "[no output]")
     print("STDERR:\n", result.stderr or "[no errors]")
 
-    if result.returncode != 0 or "Ran 0 tests" in result.stdout:
-        if "Ran 0 tests" in result.stdout:
+    # The "Ran 0 tests" output seems to be in stderr not stdout
+    output = (result.stdout or "") + (result.stderr or "") 
+    if result.returncode != 0 or "Ran 0 tests" in output:
+        if "Ran 0 tests" in result.stderr:
             print("⚠️ WARNING: No tests were discovered.")
             print("📂 Make sure your `tests/` directory has an `__init__.py` file.")
             print("🧪 Also check that your test files start with `test_` and contain functions starting with `test_`.")
