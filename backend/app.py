@@ -191,7 +191,7 @@ def run_tests(local_repo_path):
             "docker", "run", "--rm",
             "-v", f"{local_repo_path}:/app",
             "project-image",
-            "python3", "-m", "unittest", "discover", "-s", "tests"
+            "python3", "-m", "unittest", "discover", "-s", "tests", "-v"
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
