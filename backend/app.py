@@ -184,16 +184,6 @@ def build_project(local_repo_path):
 
 def run_tests(local_repo_path):
     """Runs the test scripts for the user project"""
-
-    print("📂 Listing contents of /app/tests inside container:")
-    subprocess.run([
-        "docker", "run", "--rm",
-        "-v", f"{local_repo_path}:/app",
-        "project-image",
-        "bash", "-c", "ls -l /app/tests"
-    ])
-
-
     print(f"🧪 Running tests in {local_repo_path}")
 
     result = subprocess.run(
@@ -219,10 +209,11 @@ def run_tests(local_repo_path):
             print("⚠️ WARNING: No tests were discovered.")
             print("📂 Make sure your `tests/` directory has an `__init__.py` file.")
             print("🧪 Also check that your test files start with `test_` and contain functions starting with `test_`.")
-        else:
-            print("Unknown output")
-            print("STDOUT: ", result.stdout)
-        raise Exception("❌ Test run failed or no tests discovered.")
+            raise Exception("❌ No tests discovered.")
+
+        if result.returncode != 0:
+            print(result.stderr)
+            raise Exception(f"‼️ Tests failed with error:\n{result.stderr}")
 
     print("✅ All tests passed!")
 
