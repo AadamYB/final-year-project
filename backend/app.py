@@ -184,6 +184,16 @@ def build_project(local_repo_path):
 
 def run_tests(local_repo_path):
     """Runs the test scripts for the user project"""
+
+    print("📂 Listing contents of /app/tests inside container:")
+    subprocess.run([
+        "docker", "run", "--rm",
+        "-v", f"{local_repo_path}:/app",
+        "project-image",
+        "bash", "-c", "ls -l /app/tests"
+    ])
+
+    
     print(f"🧪 Running tests in {local_repo_path}")
 
     result = subprocess.run(
