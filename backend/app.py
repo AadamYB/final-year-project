@@ -162,9 +162,9 @@ def format_project(local_repo_path):
                 "project-image",
                 "black", "--check", "app", "tests"
             ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+            # stdout=subprocess.PIPE,
+            # stderr=subprocess.PIPE,
+            # text=True,
             check=True
         )
         print("✅ Code is already formatted.")
