@@ -193,13 +193,14 @@ def run_tests(local_repo_path):
         "bash", "-c", "ls -l /app/tests"
     ])
 
-    
+
     print(f"🧪 Running tests in {local_repo_path}")
 
     result = subprocess.run(
         [
             "docker", "run", "--rm",
             "-v", f"{local_repo_path}:/app",
+            "w", "/app",
             "project-image",
             "python3", "-m", "unittest", "discover", "-s", "tests", "-v"
         ],
