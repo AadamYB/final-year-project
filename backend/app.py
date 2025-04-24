@@ -162,18 +162,18 @@ def format_project(local_repo_path):
                 "project-image",
                 "black", "--check", "app", "tests"
             ],
-            # stdout=subprocess.PIPE,
-            # stderr=subprocess.PIPE,
-            # text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
             check=True
         )
         print("✅ Code is already formatted.")
     except subprocess.CalledProcessError as e:
         print(e.stdout)
         print("❌ Black formatter failed. Would reformat:")
-        for line in e.stdout.splitlines():
-            if "would reformat" in line:
-                print("🔧 REFORMAT:", line)
+        # for line in e.stdout.splitlines():
+        #     if "would reformat" in line:
+        #         print("🔧 REFORMAT:", line)
         raise Exception("Black formatting required!")
 
 
