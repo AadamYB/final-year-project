@@ -74,13 +74,15 @@ def api_events():
         print(f"❌ Pipeline failed: {e}")
         return json.dumps({"error": str(e)}), 500
 
+
 # ---------------------------------------------------------------------------------------------
 # ------------------------------------ Utility Functions --------------------------------------
 # ---------------------------------------------------------------------------------------------
 
+
 def clone_or_pull(repo_url, local_repo_path):
-    """ Clones a GitHub repository to a local directory and/or
-        Pulls latest changes from the repository """
+    """Clones a GitHub repository to a local directory and/or
+    Pulls latest changes from the repository"""
     if not os.path.exists(local_repo_path):
         print(f"🔄 Cloning {repo_url}")
         subprocess.run(["git", "clone", repo_url, local_repo_path], check=True)
@@ -90,14 +92,14 @@ def clone_or_pull(repo_url, local_repo_path):
 
 
 def checkout_branch(local_repo_path, branch_name):
-    """ Checkouts the correct branch for the Pull Request """
+    """Checkouts the correct branch for the Pull Request"""
     print(f"🌿 Checking out branch: {branch_name}")
     subprocess.run(["git", "-C", local_repo_path, "fetch", "origin"], check=True)
     subprocess.run(["git", "-C", local_repo_path, "checkout", branch_name], check=True)
 
 
 def lint_project(local_repo_path):
-    """ Runs pylint inside Docker to ensure code quality ~ SWAG """
+    """Runs pylint inside Docker to ensure code quality ~ SWAG"""
     print("🔍 Running pylint checks...")
 
     pylint_config_path = "/app/.pylintrc"
@@ -113,23 +115,29 @@ def lint_project(local_repo_path):
     try:
         result = subprocess.run(
             [
-                "docker", "run", "--rm",
-                "-v", f"{local_repo_path}:/app",
-                "project-image", "pylint",
-                "--rcfile", pylint_config_path,
-                target_file
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{local_repo_path}:/app",
+                "project-image",
+                "pylint",
+                "--rcfile",
+                pylint_config_path,
+                target_file,
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            check=True
+            check=True,
         )
         print(result.stdout)
 
         # Check score
         if "Your code has been rated at" in result.stdout:
             score_line = next(
-                line for line in result.stdout.splitlines()
+                line
+                for line in result.stdout.splitlines()
                 if "Your code has been rated at" in line
             )
             score = float(score_line.split(" ")[6].split("/")[0])
@@ -152,21 +160,27 @@ def lint_project(local_repo_path):
 
 
 def format_project(local_repo_path):
-    """ Formats code using Black formatter inside the Docker container ~SWAG """
+    """Formats code using Black formatter inside the Docker container ~SWAG"""
     print("💅 Running black formatter...")
 
     try:
         subprocess.run(
             [
-                "docker", "run", "--rm",
-                "-v", f"{local_repo_path}:/app",
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{local_repo_path}:/app",
                 "project-image",
-                "black", "--check", "app", "tests"
+                "black",
+                "--check",
+                "app",
+                "tests",
             ],
-            check=True
+            check=True,
         )
         print("✅ Code is already formatted.")
-    
+
     except subprocess.CalledProcessError as e:
         raise Exception("Black formatting required!")
 
@@ -178,7 +192,9 @@ def build_project(local_repo_path):
     if not os.path.exists(dockerfile_path):
         raise Exception(f"❌ No Dockerfile found at {dockerfile_path}")
 
-    subprocess.run(["docker", "build", "-t", "project-image", local_repo_path], check=True)
+    subprocess.run(
+        ["docker", "build", "-t", "project-image", local_repo_path], check=True
+    )
     print("✅ Build completed.")
 
 
@@ -188,32 +204,41 @@ def run_tests(local_repo_path):
 
     result = subprocess.run(
         [
-            "docker", "run", "--rm",
-            "-v", f"{local_repo_path}:/app",
-            "-w", "/app",
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{local_repo_path}:/app",
+            "-w",
+            "/app",
             "project-image",
-            "bash", "-c", "PYTHONPATH=/app python3 -m unittest discover -s tests -v"
+            "pytest",
+            "tests",
+            "--tb=short",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
     )
-    
+
     print("STDOUT:\n", result.stdout or "[no output]")
     print("STDERR:\n", result.stderr or "[no errors]")
 
-    # The "Ran 0 tests" output seems to be in stderr not stdout - IT WAS IN STDERR GREAT SHTUFF MATE
-    concat_output = (result.stdout or "") + (result.stderr or "") 
-    if result.returncode != 0 or "Ran 0 tests" in concat_output:
-        if "Ran 0 tests" in result.stderr:
+    concat_output = (result.stdout or "") + (result.stderr or "")
+    if "collected 0 items" in concat_output:
+        # Check if __init__.py exists in tests directory
+        test_init = os.path.join(local_repo_path, "tests", "__init__.py")
+        if not os.path.exists(test_init):
             print("⚠️ WARNING: No tests were discovered.")
             print("📂 Make sure your `tests/` directory has an `__init__.py` file.")
-            print("🧪 Also check that your test files start with `test_` and contain functions starting with `test_`.")
-            raise Exception("❌ No tests discovered.")
+        else:
+            print(
+                "⚠️ No tests discovered, but `__init__.py` exists. Check that your test files start with `test_` and contain functions starting with `test_`."
+            )
+        raise Exception("❌ No tests discovered.")
 
-        if result.returncode != 0:
-            print(result.stderr)
-            raise Exception(f"‼️ Tests failed with error:\n{result.stderr}")
+    if result.returncode != 0:
+        raise Exception(f"❌ Tests failed!\n{result.stdout or result.stderr}")
 
     print("✅ All tests passed!")
 
