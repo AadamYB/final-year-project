@@ -168,21 +168,6 @@ def format_project(local_repo_path):
         print("✅ Code is already formatted.")
     
     except subprocess.CalledProcessError as e:
-        # print("❌ Black formatter failed. Would reformat:")
-        
-        # # Run it again to get the output?
-        # result = subprocess.run(
-        #     [
-        #         "docker", "run", "--rm",
-        #         "-v", f"{local_repo_path}:/app",
-        #         "project-image",
-        #         "black", "--check", "app", "tests"
-        #     ],
-        #     stdout=subprocess.PIPE,
-        #     stderr=subprocess.PIPE,
-        #     text=True
-        # )
-        print(e.stdout.strip())
         raise Exception("Black formatting required!")
 
 
