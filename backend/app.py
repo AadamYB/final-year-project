@@ -184,15 +184,24 @@ def build_project(local_repo_path):
 
 def run_tests(local_repo_path):
     print(f"🧪 Running tests in {local_repo_path}")
-    subprocess.run(
-        [
-            "docker", "run", "--rm",
-            "project-image",
-            "python3", "-m", "unittest", "discover", "-s", "tests"
-        ],
-        check=True
-    )
-    print("✅ All tests passed!")
+
+    try:
+        subprocess.run(
+            [
+                "docker", "run", "--rm",
+                "project-image",
+                "python3", "-m", "unittest", "discover", "-s", "tests"
+            ],
+            check=True
+        )
+        print("✅ All tests passed!")
+    
+    except subprocess.CalledProcessError as e:
+        print("❌ Tests failed or none were run.")
+        print("STDOUT:\n", e.stdout)
+        print("STDERR:\n", e.stderr)
+        
+        raise Exception("❌ Test run failed or no tests discovered.")
 
 
 # ------------------------------------------------------------
