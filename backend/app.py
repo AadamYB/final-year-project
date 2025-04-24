@@ -200,7 +200,7 @@ def run_tests(local_repo_path):
         [
             "docker", "run", "--rm",
             "-v", f"{local_repo_path}:/app",
-            "w", "/app",
+            "-w", "/app",
             "project-image",
             "python3", "-m", "unittest", "discover", "-s", "tests", "-v"
         ],
