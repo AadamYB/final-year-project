@@ -1,60 +1,51 @@
 .card {
-    height: 50vh;
-    flex: 2;
+    flex: 1 1 500px;
     display: flex;
+    height: 60vh;
     flex-direction: column;
     background: #858585;
     border-radius: 10px;
     padding: 20px;
     box-sizing: border-box;
+    min-width: 300px;
 }
-  
+
 .editorWrapper {
-    flex: 1;
+    flex-grow: 1;
+    min-height: 250px;
+    height: auto;
     width: 100%;
     position: relative;
 }
 
 .card h3 {
     color: #fff;
-    font-size: 26px;
+    font-size: 2.5rem;
     font-weight: bold;
+    margin: 0;
     margin-bottom: 12px;
     text-align: left;
 }
 
-.upload {
-    width: 100%;
-    margin-bottom: 15px;
-    font-size: 14px;
-    padding: 10px;
-    border-radius: 8px;
-    background: #eee;
-    cursor: pointer;
-    border: 1px solid #999;
-}
-
 .buttonRow {
     display: flex;
-    justify-content: space-around;
+    justify-content: space-between;
+    gap: 10px;
     margin-top: 10px;
 }
 
-.save,
-.reset {
+.save, .reset {
+    flex: 1;
     background: #444;
     color: white;
-    padding: 12px 24px;
-    font-size: 16px;
+    padding: 12px;
+    font-size: 1rem;
     border: none;
     border-radius: 10px;
     cursor: pointer;
-    width: 35vh;
-    transition: background 0.3s ease;
 }
 
-.save:hover,
-.reset:hover {
+.save:hover, .reset:hover {
     background: #666;
     font-weight: bold;
 }
