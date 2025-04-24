@@ -97,7 +97,7 @@ def checkout_branch(local_repo_path, branch_name):
 
 
 def lint_project(local_repo_path):
-    """Runs pylint inside Docker to ensure code quality ~ SWAG"""
+    """ Runs pylint inside Docker to ensure code quality ~ SWAG """
     print("🔍 Running pylint checks...")
 
     pylint_config_path = "/app/.pylintrc"
@@ -154,7 +154,23 @@ def lint_project(local_repo_path):
 def format_project(local_repo_path):
     """ Formats code using Black formatter inside the Docker container ~SWAG """
     print("💅 Running black formatter...")
+
     try:
+        subprocess.run(
+            [
+                "docker", "run", "--rm",
+                "-v", f"{local_repo_path}:/app",
+                "project-image",
+                "black", "--check", "app", "tests"
+            ],
+            check=True
+        )
+        print("✅ Code is already formatted.")
+    
+    except subprocess.CalledProcessError as e:
+        print("❌ Black formatter failed. Would reformat:")
+        
+        # Run it again to get the output?
         result = subprocess.run(
             [
                 "docker", "run", "--rm",
@@ -164,16 +180,9 @@ def format_project(local_repo_path):
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
-            check=True
+            text=True
         )
-        print("✅ Code is already formatted.")
-    except subprocess.CalledProcessError as e:
-        print(e.stdout)
-        print("❌ Black formatter failed. Would reformat:")
-        # for line in e.stdout.splitlines():
-        #     if "would reformat" in line:
-        #         print("🔧 REFORMAT:", line)
+        print(result.stdout.strip())
         raise Exception("Black formatting required!")
 
 
