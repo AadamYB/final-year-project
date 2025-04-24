@@ -14,7 +14,10 @@ def api_root():
 @app.route("/events", methods=["POST"])
 def api_events():
     try:
+        event_type = request.headers.get("X-GitHub-Event", "unknown")
+        print(f"📥 Event type received: {event_type}")
         event = request.json
+
         if not event:
             return json.dumps({"message": "No event data received"}), 400
 
@@ -23,8 +26,7 @@ def api_events():
         repo_url = repo.get("clone_url")
         local_repo_path = os.path.join(REPO_DIRECTORY, repo_title.replace("/", "_"))
 
-        # Handles Pull Request Events
-        if "pull_request" in event:
+        if event_type == "pull_request":
             pr = event["pull_request"]
             pr_branch = pr.get("head", {}).get("ref")
             pr_number = pr.get("number")
@@ -46,16 +48,15 @@ def api_events():
 
             return json.dumps({"status": "PR processed"}), 200
 
-        # Handles Push Events
-        elif "pusher" in event and "ref" in event:
-            push_branch = event.get("ref").split("/")[-1]
+        elif event_type == "push":
+            push_branch = event.get("ref", "").split("/")[-1]
             print(f"Received push to {push_branch} in {repo_title}.")
 
             # First we clone the repository if it does not already exist, if so then pull changes
             clone_or_pull(repo_url, local_repo_path)
 
             # Then checkout the PR branch
-            checkout_branch(local_repo_path, push_branch)
+            checkout_branch(local_repo_path, pr_branch)
 
             # We want to make sure that the code passes the formatting before building the project
             lint_project(local_repo_path)
@@ -67,8 +68,8 @@ def api_events():
 
             return json.dumps({"status": "Push processed"}), 200
 
-        print("Unsupported or unknown event.")
-        return json.dumps({"message": "Unsupported or unknown event type"}), 400
+        print("⚠️ Ignoring unsupported event type.")
+        return json.dumps({"message": f"Ignored event type: {event_type}"}), 200
 
     except Exception as e:
         print(f"❌ Pipeline failed: {e}")
