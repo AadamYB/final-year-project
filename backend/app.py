@@ -1,88 +1,93 @@
 from flask import Flask, request, json
-import requests
 import os
 import subprocess
 
 app = Flask(__name__)
-
 REPO_DIRECTORY = '/tmp/repos'
 
 @app.route('/')
 def api_root():
     return "Server is running and receiving events!"
 
-@app.route('/events', methods = ['POST'])
+@app.route('/events', methods=['POST'])
 def api_events():
     event = request.json
 
-    if event:
-        pr = event.get('pull_request', {})
-        repo_title = event.get('repository', {}).get('full_name')
+    if not event:
+        return json.dumps({"message": "No event data received"}), 400
+
+    repo = event.get('repository', {})
+    repo_title = repo.get('full_name')
+    repo_url = repo.get('clone_url')
+    local_repo_path = os.path.join(REPO_DIRECTORY, repo_title.replace("/", "_"))
+
+    if 'pull_request' in event:
+        pr = event['pull_request']
         pr_branch = pr.get('head', {}).get('ref')
         pr_number = pr.get('number')
-        repo_url = event.get('repository', {}).get('clone_url')
 
         print(f"Received PR event for PR#{pr_number} in {repo_title} for branch {pr_branch}.")
 
-        # First we clone the repository if it does not already exist, if so then pull changes
-        local_repo_path = os.path.join(REPO_DIRECTORY, repo_title.replace("/", "_"))
-        
-        if not os.path.exists(local_repo_path):
-            clone_repo(repo_url, local_repo_path)
-        else:
-            pull_changes(local_repo_path)
+        if pr_branch and repo_url:
 
-        # Then checkout the PR branch
-        checkout_pr_branch(local_repo_path, pr_branch)
+            # First we clone the repository if it does not already exist, if so then pull changes
+            clone_or_pull(repo_url, local_repo_path)
 
-        # # Step 3: Trigger Build & Test
-        build_project(local_repo_path)
-        # run_tests(local_repo_path)
+            # Then checkout the PR branch
+            checkout_branch(local_repo_path, pr_branch)
 
-        return json.dumps({"status": "PR processed"}), 200
+            # # Trigger Build & Test
+            build_project(local_repo_path)
+            return json.dumps({"status": "PR processed"}), 200
 
-    return json.dumps({"message": "No event data received"}), 400
+    elif 'pusher' in event and 'ref' in event:
+        push_branch = event.get('ref').split("/")[-1]
+
+        print(f"Received push to {push_branch} in {repo_title}.")
+
+        if repo_url and push_branch:
+
+            clone_or_pull(repo_url, local_repo_path)
 
 
-def clone_repo(repo_url, local_repo_path):
-    """ Clones a GitHub repository to a local directory """
-    print(f"Cloning {repo_url} into {local_repo_path}")
-    subprocess.run(["git", "clone", repo_url, local_repo_path], check=True)
+            checkout_branch(local_repo_path, push_branch)
+            build_project(local_repo_path)
+            return json.dumps({"status": "Push processed"}), 200
 
-def pull_changes(local_repo_path):
-    """ Pulls latest changes from the repository """
-    print(f"Pulling latest changes in {local_repo_path}")
-    subprocess.run(["git", "-C", local_repo_path, "pull"], check=True)
+    print("Unsupported or unknown event.")
+    return json.dumps({"message": "Unsupported or unknown event type"}), 400
 
-def checkout_pr_branch(local_repo_path, pr_branch):
+def clone_or_pull(repo_url, local_repo_path):
+    """ Clones a GitHub repository to a local directory and/or 
+        Pulls latest changes from the repository"""
+    if not os.path.exists(local_repo_path):
+        print(f"Cloning {repo_url} into {local_repo_path}")
+        subprocess.run(["git", "clone", repo_url, local_repo_path], check=True)
+    else:
+        print(f"Pulling latest changes in {local_repo_path}")
+        subprocess.run(["git", "-C", local_repo_path, "pull"], check=True)
+
+def checkout_branch(local_repo_path, branch_name):
     """ Checkouts the correct branch for the Pull Request"""
-    print(f"Checking out PR branch: {pr_branch}")
+    print(f"Checking out branch: {branch_name}")
     subprocess.run(["git", "-C", local_repo_path, "fetch", "origin"], check=True)
-    subprocess.run(["git", "-C", local_repo_path, "checkout", pr_branch], check=True)
+    subprocess.run(["git", "-C", local_repo_path, "checkout", branch_name], check=True)
 
 def build_project(local_repo_path):
     """ Builds the project inside a Docker container """
     print(f"Building project in {local_repo_path}")
+    dockerfile_path = os.path.join(local_repo_path, "Dockerfile")
 
-    if not os.path.exists("Dockerfile"):
-        print("❌ ERROR! No Dockerfile found in the repository.")
-        print("⚠️ Please add a Dockerfile to the root of the repository to build the project.")
+    if not os.path.exists(dockerfile_path):
+        print(f"❌ ERROR! No Dockerfile found at {dockerfile_path}")
         return
-    
+
     try:
         subprocess.run(["docker", "build", "-t", "project-image", local_repo_path], check=True)
         print("✅ Hooray! Build Successful!")
     except subprocess.CalledProcessError as e:
         print(f"❌ Failed to build the project. Error: {e}")
 
-def run_tests(local_repo_path):
-    """ Runs tests inside the Docker container """
-    print(f"Running tests for {local_repo_path}")
-    subprocess.run(["docker", "run", "--rm", "project-image", "pytest"], check=True)
-
-
 if __name__ == '__main__':
-    if not os.path.exists(REPO_DIRECTORY):
-        os.makedirs(REPO_DIRECTORY)
-
+    os.makedirs(REPO_DIRECTORY, exist_ok=True)
     app.run(debug=True, host='0.0.0.0', port=5000)
