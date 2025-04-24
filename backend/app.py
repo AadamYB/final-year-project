@@ -97,34 +97,58 @@ def checkout_branch(local_repo_path, branch_name):
 
 
 def lint_project(local_repo_path):
-    """ Runs pylint inside Docker to ensure code quality ~ SWAG """
+    """Runs pylint inside Docker to ensure code quality ~ SWAG"""
     print("🔍 Running pylint checks...")
-    result = subprocess.run(
-        [
-            "docker", "run", "--rm",
-            "-v", f"{local_repo_path}:/app",
-            "project-image", "pylint",
-            "--rcfile", "/app/.pylintrc",
-            "/app/app/main.py"
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        check=True
-    )
-    print(result.stdout)
-    print(result.stderr)
 
-     # Parse score from output
-    if "Your code has been rated at" in result.stdout:
-        score_line = next(
-            line for line in result.stdout.splitlines()
-            if "Your code has been rated at" in line
+    pylint_config_path = "/app/.pylintrc"
+    target_file = "/app/app/main.py"
+
+    # Ensure the file exists inside the local repo (host side) before Docker call
+    if not os.path.exists(os.path.join(local_repo_path, "app", "main.py")):
+        raise Exception("❌ Target file app/main.py does not exist!")
+
+    if not os.path.exists(os.path.join(local_repo_path, ".pylintrc")):
+        raise Exception("❌ .pylintrc config file not found in the project root!")
+
+    try:
+        result = subprocess.run(
+            [
+                "docker", "run", "--rm",
+                "-v", f"{local_repo_path}:/app",
+                "project-image", "pylint",
+                "--rcfile", pylint_config_path,
+                target_file
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
         )
-        score = float(score_line.split(" ")[6].split("/")[0])
-        print(f"📊 Pylint score: {score}/10")
-        if score < 8.0:
-            raise Exception(f"❌ Lint failed! Score: {score}/10")
+        print(result.stdout)
+
+        # Check score
+        if "Your code has been rated at" in result.stdout:
+            score_line = next(
+                line for line in result.stdout.splitlines()
+                if "Your code has been rated at" in line
+            )
+            score = float(score_line.split(" ")[6].split("/")[0])
+            print(f"📊 Pylint score: {score}/10")
+            if score < 8.0:
+                raise Exception(f"❌ Lint failed! Score: {score}/10")
+
+    except subprocess.CalledProcessError as e:
+        print("❌ Pylint returned an error.")
+        print("STDOUT:\n", e.stdout)
+        print("STDERR:\n", e.stderr)
+
+        if "No module named" in e.stderr or "load-plugins" in e.stderr:
+            print("💡 HINT: Check if all plugins in `.pylintrc` are installed.")
+            print("🔧 You can fix this by adding:")
+            print("    pylint[docparams,typing,code_style]")
+            print("  to your `requirements.txt` and rebuilding the Docker image.")
+
+        raise Exception("❌ Linting failed due to error above.")
 
 
 def format_project(local_repo_path):
