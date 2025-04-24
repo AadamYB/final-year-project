@@ -202,6 +202,10 @@ def run_tests(local_repo_path):
     print("STDERR:\n", result.stderr or "[no errors]")
 
     if result.returncode != 0:
+        if "Ran 0 tests" in result.stdout:
+            print("⚠️ WARNING: No tests were discovered.")
+            print("📂 Make sure your `tests/` directory has an `__init__.py` file.")
+            print("🧪 Also check that your test files start with `test_` and contain functions starting with `test_`.")
         raise Exception("❌ Test run failed or no tests discovered.")
 
     print("✅ All tests passed!")
