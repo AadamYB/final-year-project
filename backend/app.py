@@ -202,13 +202,13 @@ def run_tests(local_repo_path):
             "-v", f"{local_repo_path}:/app",
             "-w", "/app",
             "project-image",
-            "bash", "-c", "PYTHONPATH=/app python3 -m unittest tests.test_runner"
+            "bash", "-c", "PYTHONPATH=/app python3 -m unittest discover -s tests -v"
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True
     )
-
+    
     print("STDOUT:\n", result.stdout or "[no output]")
     print("STDERR:\n", result.stderr or "[no errors]")
 
