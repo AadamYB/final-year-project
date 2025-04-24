@@ -113,6 +113,7 @@ def lint_project(local_repo_path):
         check=True
     )
     print(result.stdout)
+    print(result.stderr)
 
      # Parse score from output
     if "Your code has been rated at" in result.stdout:
