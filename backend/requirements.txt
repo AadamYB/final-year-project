@@ -2,3 +2,4 @@ Flask
 requests
 gunicorn
 eventlet
+PyYAML>=6.0

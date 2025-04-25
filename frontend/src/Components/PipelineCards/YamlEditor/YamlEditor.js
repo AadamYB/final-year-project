@@ -10,7 +10,7 @@ const YamlEditorCard = ({ yamlText, setYamlText }) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "pipeline.yaml";
+    a.download = ".ci.yaml";
     a.click();
     URL.revokeObjectURL(url);
   };

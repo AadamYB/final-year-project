@@ -2,6 +2,7 @@ from flask import Flask, request, json
 import os
 import subprocess
 from flask_socketio import SocketIO, emit
+import yaml
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -45,13 +46,30 @@ def api_events():
             # Then checkout the PR branch
             checkout_branch(local_repo_path, pr_branch)
 
+            # Load .ci.yml if it exists
+            ci_config = load_ci_config(local_repo_path)
+
+            # Conditionally execute steps
+
             # We want to make sure that the code passes the formatting before building the project
-            lint_project(local_repo_path)
-            format_project(local_repo_path)
+            if ci_config.get("lint", True):
+                lint_project(local_repo_path)
+
+            if ci_config.get("format", True):
+                format_project(local_repo_path)
 
             # Trigger the buiild and testing of the project
-            build_project(local_repo_path)
-            run_tests(local_repo_path)
+            if ci_config.get("build", True):
+                build_project(local_repo_path)
+
+            if ci_config.get("test", True):
+                run_tests(local_repo_path)
+
+            # If users add their own custom commands
+            for cmd in ci_config.get("run_commands", []):
+                if isinstance(cmd, str):
+                    print(f"🏃 Running custom command: {cmd}")
+                    subprocess.run(cmd, shell=True, check=True, cwd=local_repo_path)
 
             return json.dumps({"status": "PR processed"}), 200
 
@@ -65,13 +83,30 @@ def api_events():
             # Then checkout the PR branch
             checkout_branch(local_repo_path, pr_branch)
 
+            # Load .ci.yml if it exists
+            ci_config = load_ci_config(local_repo_path)
+
+            # Conditionally execute steps
+
             # We want to make sure that the code passes the formatting before building the project
-            lint_project(local_repo_path)
-            format_project(local_repo_path)
+            if ci_config.get("lint", True):
+                lint_project(local_repo_path)
+
+            if ci_config.get("format", True):
+                format_project(local_repo_path)
 
             # Trigger the buiild and testing of the project
-            build_project(local_repo_path)
-            run_tests(local_repo_path)
+            if ci_config.get("build", True):
+                build_project(local_repo_path)
+
+            if ci_config.get("test", True):
+                run_tests(local_repo_path)
+
+            # If users add their own custom commands
+            for cmd in ci_config.get("run_commands", []):
+                if isinstance(cmd, str):
+                    print(f"🏃 Running custom command: {cmd}")
+                    subprocess.run(cmd, shell=True, check=True, cwd=local_repo_path)
 
             return json.dumps({"status": "Push processed"}), 200
 
@@ -85,7 +120,7 @@ def api_events():
 
 @socketio.on('connect')
 def handle_connect():
-    print("🧑‍💻 WebSocket client connected")
+    print("🛜 WebSocket client connected ✅")
 
 
 @socketio.on('start-debug')
@@ -98,7 +133,7 @@ def start_debug_session(data):
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print("❌ WebSocket client disconnected")
+    print("🛜 WebSocket client disconnected ❌")
 
 # ---------------------------------------------------------------------------------------------
 # ------------------------------------ Utility Functions --------------------------------------
@@ -132,10 +167,10 @@ def lint_project(local_repo_path):
 
     # Ensure the file exists inside the local repo (host side) before Docker call
     if not os.path.exists(os.path.join(local_repo_path, "app", "main.py")):
-        raise Exception("❌ Target file app/main.py does not exist!")
+        raise Exception("❌ ERROR! Target file app/main.py does not exist!")
 
     if not os.path.exists(os.path.join(local_repo_path, ".pylintrc")):
-        raise Exception("❌ .pylintrc config file not found in the project root!")
+        raise Exception("❌ ERROR! .pylintrc config file not found in the project root!")
 
     try:
         result = subprocess.run(
@@ -168,10 +203,10 @@ def lint_project(local_repo_path):
             score = float(score_line.split(" ")[6].split("/")[0])
             print(f"📊 Pylint score: {score}/10")
             if score < 8.0:
-                raise Exception(f"❌ Lint failed! Score: {score}/10")
+                raise Exception(f"❌ ERROR - Lint failed! Score: {score}/10")
 
     except subprocess.CalledProcessError as e:
-        print("❌ Pylint returned an error.")
+        print("❌ ERROR - Pylint returned an error.")
         print("STDOUT:\n", e.stdout)
         print("STDERR:\n", e.stderr)
 
@@ -181,7 +216,7 @@ def lint_project(local_repo_path):
             print("    pylint[docparams,typing,code_style]")
             print("  to your `requirements.txt` and rebuilding the Docker image.")
 
-        raise Exception("❌ Linting failed due to error above.")
+        raise Exception("❌ ERROR! Linting failed due to error above.")
 
 
 def format_project(local_repo_path):
@@ -207,7 +242,7 @@ def format_project(local_repo_path):
         print("✅ Code is already formatted.")
 
     except subprocess.CalledProcessError as e:
-        raise Exception("Black formatting required!")
+        raise Exception("ERROR! Black formatting required!")
 
 
 def build_project(local_repo_path):
@@ -215,7 +250,7 @@ def build_project(local_repo_path):
     print(f"🏗️ Building project in {local_repo_path}")
     dockerfile_path = os.path.join(local_repo_path, "Dockerfile")
     if not os.path.exists(dockerfile_path):
-        raise Exception(f"❌ No Dockerfile found at {dockerfile_path}")
+        raise Exception(f"❌ ERROR! No Dockerfile found at {dockerfile_path}")
 
     subprocess.run(
         ["docker", "build", "-t", "project-image", local_repo_path], check=True
@@ -258,20 +293,46 @@ def run_tests(local_repo_path):
             print("📂 Make sure your `tests/` directory has an `__init__.py` file.")
         else:
             print(
-                "⚠️ No tests discovered, but `__init__.py` exists. Check that your test files start with `test_` and contain functions starting with `test_`."
+                "⚠️ CAUTION! No tests discovered, but `__init__.py` exists. Check that your test files start with `test_` and contain functions starting with `test_`."
             )
-        raise Exception("❌ No tests discovered.")
+        raise Exception("❌ ERROR! No tests discovered.")
 
     if result.returncode != 0:
         raise Exception(f"❌ Tests failed!\n{result.stdout or result.stderr}")
 
     print("✅ All tests passed!")
 
+def load_ci_config(local_repo_path):
+    """ This is for the  configuration page where users can update their ci pipline steps """
+    ci_config_path = os.path.join(local_repo_path, ".ci.yml")
+
+    if not os.path.exists(ci_config_path):
+        print("⚠️ CAUTION! No .ci.yml found, using default config.")
+        return {
+            "lint": True,
+            "format": True,
+            "build": True,
+            "test": True,
+            "run_commands": []
+        }
+
+    try:
+        with open(ci_config_path, "r") as f:
+            config = yaml.safe_load(f)
+            print(f"🛠️ Loaded CI config: {config}")
+            return {
+                "lint": config.get("lint", True),
+                "format": config.get("format", True),
+                "build": config.get("build", True),
+                "test": config.get("test", True),
+                "run_commands": config.get("run_commands", [])
+            }
+    except Exception as e:
+        print(f"❌ ERROR! Failed to load .ci.yml: {e}")
+        raise
 
 # ------------------------------------------------------------
 
 if __name__ == "__main__":
     os.makedirs(REPO_DIRECTORY, exist_ok=True)
     socketio.run(app, debug=True, host="0.0.0.0", port=5000)
-
-# application = app
