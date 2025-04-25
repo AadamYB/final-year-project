@@ -1,8 +1,10 @@
 from flask import Flask, request, json
 import os
 import subprocess
+from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*")
 REPO_DIRECTORY = "/tmp/repos"
 
 
@@ -25,6 +27,11 @@ def api_events():
         repo_title = repo.get("full_name")
         repo_url = repo.get("clone_url")
         local_repo_path = os.path.join(REPO_DIRECTORY, repo_title.replace("/", "_"))
+
+        # Skip builds for internal system repos
+        if repo_title == "AadamYB/final-year-project":
+            print(f"⚙️ Internal repo push detected for {repo_title} — skipping.")
+            return json.dumps({"status": "ignored"}), 200
 
         if event_type == "pull_request":
             pr = event["pull_request"]
@@ -75,6 +82,23 @@ def api_events():
         print(f"❌ Pipeline failed: {e}")
         return json.dumps({"error": str(e)}), 500
 
+
+@socketio.on('connect')
+def handle_connect():
+    print("🧑‍💻 WebSocket client connected")
+
+
+@socketio.on('start-debug')
+def start_debug_session(data):
+    repo = data.get("repo")
+    print(f"> [DEBUG] 🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}")
+    emit("log", {"log": f"> [DEBUG] 🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}"})
+    emit("log", {"log": f"> [DEBUG] LOGS PAUSED ⏸️"})
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print("❌ WebSocket client disconnected")
 
 # ---------------------------------------------------------------------------------------------
 # ------------------------------------ Utility Functions --------------------------------------
@@ -248,4 +272,4 @@ def run_tests(local_repo_path):
 
 if __name__ == "__main__":
     os.makedirs(REPO_DIRECTORY, exist_ok=True)
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    socketio.run(app, debug=True, host="0.0.0.0", port=5000)
