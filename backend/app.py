@@ -81,7 +81,7 @@ def api_events():
             clone_or_pull(repo_url, local_repo_path)
 
             # Then checkout the PR branch
-            checkout_branch(local_repo_path, pr_branch)
+            checkout_branch(local_repo_path, push_branch)
 
             # Load .ci.yml if it exists
             ci_config = load_ci_config(local_repo_path)
