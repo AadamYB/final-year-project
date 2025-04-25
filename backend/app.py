@@ -273,3 +273,5 @@ def run_tests(local_repo_path):
 if __name__ == "__main__":
     os.makedirs(REPO_DIRECTORY, exist_ok=True)
     socketio.run(app, debug=True, host="0.0.0.0", port=5000)
+
+application = app
