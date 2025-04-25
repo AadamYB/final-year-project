@@ -377,4 +377,4 @@ def run_command_with_stream_output(cmd, cwd=None, tag=None):
 
 if __name__ == "__main__":
     os.makedirs(REPO_DIRECTORY, exist_ok=True)
-    socketio.run(app, debug=True, host="0.0.0.0", port=5000)
+    socketio.run(app, debug=False, host="0.0.0.0", port=5000)

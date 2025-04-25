@@ -1,10 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import styles from "../styles/DebugPage.module.css";
 import BuildListCard from "../Components/DebugCards/BuildListCard/BuildListCard";
 import BreakpointTracker from "../Components/DebugCards/BreakpointTracker/BreakpointTracker";
 import StreamLogs from "../Components/DebugCards/StreamLogs/StreamLogs";
 import DebugConsole from "../Components/DebugCards/DebugConsole/DebugConsole";
+import io from "socket.io-client";
 
+const socket = io("http://13.40.55.105:5000"); // the backend endpoint - EC2 ip address and the port the flask app is running on
+
+// mock logs for viewing what the expected backend streamed logs will look like
 const mockLogs = [
     "[2025-01-14     17:54:46 ] RUNNING CMD mkdir tmp-repo",
     "[2025-01-14     17:54:48 ] RUNNING CMD cd tmp-repo",
@@ -52,6 +56,19 @@ const DebugPage = () => {
     stage: "setup",
     step: "Cloning main repo",
   });
+
+  // Listen for any logs from backend
+  const [logs, setLogs] = useState([]);
+  useEffect(() => {
+    socket.on("log", (data) => {
+      setLogs((prevLogs) => [...prevLogs, data.log]);
+    });
+
+    // Cleanup
+    return () => {
+      socket.off("log");
+    };
+  }, []);
 
   // this function is used to allow users to interrupt their pipelines
   const toggleBreakpoint = (stage, type) => {
@@ -139,7 +156,7 @@ const DebugPage = () => {
           onToggleBreakpoint={toggleBreakpoint}
         />
 
-        <StreamLogs logs={mockLogs} />
+        <StreamLogs logs={logs} />
         <DebugConsole data={selectedBuild} />
       </div>
     </div>
