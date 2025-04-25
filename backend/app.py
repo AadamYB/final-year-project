@@ -28,7 +28,7 @@ def api_events():
         repo_url = repo.get("clone_url")
         local_repo_path = os.path.join(REPO_DIRECTORY, repo_title.replace("/", "_"))
 
-        # Skip builds for internal system repos
+        # Skip builds for internal system repository
         if repo_title == "AadamYB/final-year-project":
             print(f"⚙️ Internal repo push detected for {repo_title} — skipping.")
             return json.dumps({"status": "ignored"}), 200
