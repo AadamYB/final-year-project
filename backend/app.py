@@ -145,6 +145,12 @@ def handle_update_breakpoints(data):
     breakpoints = data
     log(f"[DEBUG] Updated breakpoints: {data}")
 
+@socketio.on('pause')
+def handle_pause():
+    global is_paused
+    is_paused = True
+    log("[DEBUG] ⏸️ Pause signal received from frontend! Pausing pipeline...")
+
 @socketio.on('resume')
 def handle_resume():
     global is_paused
@@ -420,7 +426,7 @@ def pause_execution(stage, when):
 
     # Check if the current stage needs to be paused and also when it needs to be paused
     if breakpoints.get(stage, {}).get(when, False):
-        log(f"⏸️ Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!")
+        log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!")
         is_paused = True
 
         # Loop until resume is received
