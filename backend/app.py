@@ -3,6 +3,7 @@ import os
 import subprocess
 from flask_socketio import SocketIO, emit
 import yaml
+from datetime import datetime, timezone
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -139,11 +140,16 @@ def handle_disconnect():
 # ---------------------------------------------------------------------------------------------
 
 def log(message, tag=None):
-    """ Utility function that prints and emits the string message """
+    """ Utility function that prints and emits the string message with a timestamp """
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
     if tag:
-        message = f"[{tag.upper()}] {message}"
-    print(message)
-    socketio.emit('log', {'log': message})
+        formatted_msg = f"[{tag.upper()}] [{timestamp}] {message}"
+    else:
+        formatted_msg = f"[{timestamp}] {message}"
+
+    print(formatted_msg)
+    socketio.emit('log', {'log': formatted_msg})
 
 
 def clone_or_pull(repo_url, local_repo_path):
@@ -160,7 +166,7 @@ def clone_or_pull(repo_url, local_repo_path):
 
 
 def checkout_branch(local_repo_path, branch_name):
-    """Checkouts the correct branch for the Pull Request"""
+    """ Checkouts the correct branch for the Pull Request """
     log(f"🌿 Checking out branch: {branch_name}")
     # fetch latest branches
     cmd_fetch = f"git -C {local_repo_path} fetch origin"
@@ -172,7 +178,7 @@ def checkout_branch(local_repo_path, branch_name):
 
 
 def lint_project(local_repo_path):
-    """Runs pylint inside Docker to ensure code quality, streaming output and checking scores."""
+    """ Runs pylint inside Docker to ensure code quality, streaming output and checking scores. """
     log("🔍 Running pylint checks...", tag="lint")
 
     pylint_config_path = "/app/.pylintrc"
@@ -234,7 +240,7 @@ def lint_project(local_repo_path):
 
 
 def format_project(local_repo_path):
-    """Formats code using Black formatter inside the Docker container ~SWAG"""
+    """ Formats code using Black formatter inside the Docker container ~SWAG """
     log("💅 Running black formatter...", tag="format")
 
     cmd = (
@@ -245,7 +251,7 @@ def format_project(local_repo_path):
 
 
 def build_project(local_repo_path):
-    """Builds the project inside a Docker container"""
+    """ Builds the project inside a Docker container """
     log(f"🏗️ Building project in {local_repo_path}", tag="build")
 
     dockerfile_path = os.path.join(local_repo_path, "Dockerfile")
@@ -327,7 +333,7 @@ def load_ci_config(local_repo_path):
     try:
         with open(ci_config_path, "r") as f:
             config = yaml.safe_load(f)
-            log(f"🛠️ Loaded CI config: {config}")
+            log(f"🚀 Loaded CI config: {config}")
             return {
                 "lint": config.get("lint", True),
                 "format": config.get("format", True),
@@ -369,7 +375,7 @@ def run_command_with_stream_output(cmd, cwd=None, tag=None):
     process.wait()
 
     if process.returncode != 0:
-        error_message = f"⛔️ ERROR during [{tag}] stage.\nExit Code: {process.returncode}\n\nOutput:\n" + "\n".join(output_lines)
+        error_message = f"⛔️ ERROR during [{tag}] stage. ❌\nExit Code: {process.returncode}\n\nOutput:\n" + "\n".join(output_lines)
         log(error_message, tag=tag or "error")
         raise Exception(error_message)
     

@@ -29,3 +29,24 @@
   text-align: left;
   line-height: 1.3; /* Even out the spacing between lines do that emojis do not mess up the gaps */
 }
+
+/* Color classes */
+.success {
+  color: #04a447; /* Green */
+}
+
+.error {
+  color: #e74c3c; /* Red */
+}
+
+.warning {
+  color: #b08d03; /* Yellow */
+}
+
+.info {
+  color: #3498db; 
+}
+
+.default {
+  color: #000000; /* Black */
+}
