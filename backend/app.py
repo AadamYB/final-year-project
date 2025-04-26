@@ -4,10 +4,19 @@ import subprocess
 from flask_socketio import SocketIO, emit
 import yaml
 from datetime import datetime, timezone
+import time
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 REPO_DIRECTORY = "/tmp/repos"
+
+breakpoints = {
+    "setup": {"before": False, "after": False},
+    "build": {"before": False, "after": False},
+    "test": {"before": False, "after": False},
+}
+
+is_paused = False
 
 
 @app.route("/")
@@ -130,6 +139,17 @@ def start_debug_session(data):
     log(f"[DEBUG] 🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}")
     log("[DEBUG] LOGS PAUSED ⏸️")
 
+@socketio.on('update-breakpoints')
+def handle_update_breakpoints(data):
+    global breakpoints
+    breakpoints = data
+    log(f"[DEBUG] Updated breakpoints: {data}")
+
+@socketio.on('resume')
+def handle_resume():
+    global is_paused
+    is_paused = False
+    log(f"[DEBUG] 🟢 Resume signal received! Continuing pipeline...")
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -155,6 +175,9 @@ def log(message, tag=None):
 def clone_or_pull(repo_url, local_repo_path):
     """ Clones a GitHub repository to a local directory or
         Pulls latest changes from the repository """
+    
+    pause_execution('setup', 'before')   # Can optionally pause a pileline before executing command
+
     if not os.path.exists(local_repo_path):
         log(f"🔄 Cloning {repo_url}")
         cmd = f"git clone {repo_url} {local_repo_path}"
@@ -163,6 +186,9 @@ def clone_or_pull(repo_url, local_repo_path):
         log(f"🔁 Pulling latest changes in {local_repo_path}")
         cmd = f"git -C {local_repo_path} pull"
         run_command_with_stream_output(cmd, tag="pull")
+    
+    pause_execution('setup', 'after')
+
 
 
 def checkout_branch(local_repo_path, branch_name):
@@ -252,6 +278,8 @@ def format_project(local_repo_path):
 
 def build_project(local_repo_path):
     """ Builds the project inside a Docker container """
+    pause_execution('build', 'before')   # Can choose to pause pipeline if we want - according to user
+
     log(f"🏗️ Building project in {local_repo_path}", tag="build")
 
     dockerfile_path = os.path.join(local_repo_path, "Dockerfile")
@@ -261,9 +289,13 @@ def build_project(local_repo_path):
     cmd = f"docker build -t project-image {local_repo_path}"
     run_command_with_stream_output(cmd, tag="build")
 
+    pause_execution('build', 'after')
+
 
 def run_tests(local_repo_path):
     """ Runs the test scripts for the user project also stream output """
+    pause_execution('test', 'before') 
+
     log(f"🧪 Running tests in {local_repo_path}", tag="test")
 
     cmd = (
@@ -315,6 +347,8 @@ def run_tests(local_repo_path):
         raise Exception(f"❌ Tests failed!\n{full_output}")
 
     log("✅ All tests passed!", tag="test")
+
+    pause_execution('test', 'after') 
 
 def load_ci_config(local_repo_path):
     """ This is for the  configuration page where users can update their ci pipline steps """
@@ -378,6 +412,20 @@ def run_command_with_stream_output(cmd, cwd=None, tag=None):
         error_message = f"⛔️ ERROR during [{tag}] stage. ❌\nExit Code: {process.returncode}\n\nOutput:\n" + "\n".join(output_lines)
         log(error_message, tag=tag or "error")
         raise Exception(error_message)
+    
+
+def pause_execution(stage, when):
+    """ helper function that pauses an execution """
+    global is_paused
+
+    # Check if the current stage needs to be paused and also when it needs to be paused
+    if breakpoints.get(stage, {}).get(when, False):
+        log(f"⏸️ Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!")
+        is_paused = True
+
+        # Loop until resume is received
+        while is_paused:
+            time.sleep(0.5)  # check every half second
     
 # ------------------------------------------------------------
 
