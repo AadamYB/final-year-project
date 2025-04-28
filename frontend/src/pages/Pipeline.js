@@ -3,7 +3,6 @@ import styles from "../styles/Pipeline.module.css";
 import YamlEditorCard from "../Components/PipelineCards/YamlEditor/YamlEditor";
 import UploadSelectCard from "../Components/PipelineCards/UploadSelectCard/UploadSelectCard";
 import PipelineVisualiser from "../Components/PipelineCards/PiplineVisualiser/PipelineVisualiser";
-import { CODE_SNIPPETS } from "../constants/yamlTemplates";
 
 const PipelinePage = () => {
   const [yamlText, setYamlText] = useState("");

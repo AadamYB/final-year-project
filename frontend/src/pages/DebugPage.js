@@ -51,6 +51,7 @@ const buildData = [
 
 const DebugPage = () => {
   const [selectedBuild, setSelectedBuild] = useState(buildData[0]);
+  const [canEditBreakpoints, setCanEditBreakpoints] = useState(false);
   const [breakpoints, setBreakpoints] = useState(initialBreakpointStates);
   const [activeStep, setActiveStep] = useState({
     stage: "setup",
@@ -64,14 +65,21 @@ const DebugPage = () => {
       setLogs((prevLogs) => [...prevLogs, data.log]);
     });
 
-    // Cleanup
+    socket.on("allow-breakpoint-edit", () => {
+      console.log("✅ Breakpoints can now be edited");
+      setCanEditBreakpoints(true);
+    });
+  
     return () => {
       socket.off("log");
+      socket.off("allow-breakpoint-edit");
     };
   }, []);
 
   // this function is used to allow users to interrupt their pipelines
   const toggleBreakpoint = (stage, type) => {
+    if (!canEditBreakpoints) return; 
+
     setBreakpoints((prev) => {
       const current = prev[stage][type];
       let next;
@@ -95,13 +103,18 @@ const DebugPage = () => {
           next = "inactive";
       }
 
-      return {
-        ...prev,
-        [stage]: {
-          ...prev[stage],
-          [type]: next,
-        },
-      };
+      const updated = {
+      ...prev,
+      [stage]: {
+        ...prev[stage],
+        [type]: next,
+      },
+    };
+
+    // should send updated breakpoints to backend
+    socket.emit("update-breakpoints", updated);
+
+    return updated;
     });
   };
 
@@ -154,6 +167,8 @@ const DebugPage = () => {
           activeStage={activeStep}
           breakpoints={breakpoints}
           onToggleBreakpoint={toggleBreakpoint}
+          socket={socket}
+          canEdit={canEditBreakpoints}
         />
 
         <StreamLogs logs={logs} />

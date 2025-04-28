@@ -43,6 +43,9 @@ def api_events():
         if repo_title == "AadamYB/final-year-project":
             log(f"⚙️ Internal repo push detected for {repo_title} — skipping.")
             return json.dumps({"status": "ignored"}), 200
+        
+        ci_config = load_ci_config(local_repo_path)
+        configure_breakpoints_from_ci(ci_config)
 
         if event_type == "pull_request":
             pr = event["pull_request"]
@@ -142,8 +145,29 @@ def start_debug_session(data):
 @socketio.on('update-breakpoints')
 def handle_update_breakpoints(data):
     global breakpoints
+
+    # Validate data (to prevent invalid shapes)
+    expected_stages = {"setup", "build", "test"}
+    expected_keys = {"before", "after"}
+
+    if not isinstance(data, dict):
+        log("❌ ERROR! Invalid breakpoint update: not a dict!")
+        return
+
+    for stage, points in data.items():
+        if stage not in expected_stages:
+            log(f"❌ ERROR! Invalid stage in breakpoint update: {stage}")
+            return
+        if not isinstance(points, dict) or not expected_keys.issubset(points.keys()):
+            log(f"❌ ERROR! Invalid keys for stage {stage}: expected 'before' and 'after'")
+            return
+
+    # If valid, update global breakpoints
     breakpoints = data
-    log(f"[DEBUG] Updated breakpoints: {data}")
+    log(f"[DEBUG] ✅ Breakpoints updated to: {breakpoints}")
+
+    # Notify the frontend
+    socketio.emit("breakpoints-updated", {"breakpoints": breakpoints})
 
 @socketio.on('pause')
 def handle_pause():
@@ -367,7 +391,14 @@ def load_ci_config(local_repo_path):
             "format": True,
             "build": True,
             "test": True,
-            "run_commands": []
+            "run_commands": [],
+            "pause_before_clone": False,
+            "pause_after_clone": False,
+            "pause_before_build": False,
+            "pause_after_build": False,
+            "pause_before_test": False,
+            "pause_after_test": False,
+            "pause_increment": False,
         }
 
     try:
@@ -379,11 +410,29 @@ def load_ci_config(local_repo_path):
                 "format": config.get("format", True),
                 "build": config.get("build", True),
                 "test": config.get("test", True),
-                "run_commands": config.get("run_commands", [])
+                "run_commands": config.get("run_commands", []),
+                "pause_before_clone": config.get("pause_before_clone", False),
+                "pause_after_clone": config.get("pause_after_clone", False),
+                "pause_before_build": config.get("pause_before_build", False),
+                "pause_after_build": config.get("pause_after_build", False),
+                "pause_before_test": config.get("pause_before_test", False),
+                "pause_after_test": config.get("pause_after_test", False),
+                "pause_increment": config.get("pause_increment", False),
             }
     except Exception as e:
         log(f"❌ ERROR! Failed to load .ci.yml: {e}")
         raise
+
+def configure_breakpoints_from_ci(ci_config):
+    global breakpoints
+    breakpoints = {
+        "setup": {"before": ci_config.get("pause_before_clone", False), "after": ci_config.get("pause_after_clone", False)},
+        "build": {"before": ci_config.get("pause_before_build", False), "after": ci_config.get("pause_after_build", False)},
+        "test": {"before": ci_config.get("pause_before_test", False), "after": ci_config.get("pause_after_test", False)},
+    }
+    log(f"[DEBUG] Breakpoints configured: {breakpoints}")
+    socketio.emit("pause-configured", {"breakpoints": breakpoints})
+
 
 def run_command_with_stream_output(cmd, cwd=None, tag=None):
     """ Runs a shell command and streams output over WebSocket """
@@ -428,6 +477,9 @@ def pause_execution(stage, when):
     if breakpoints.get(stage, {}).get(when, False):
         log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!")
         is_paused = True
+
+        socketio.emit('allow-breakpoint-edit', {"stage": stage.upper(), "when": when.upper()})
+        log("[DEBUG] 🔓 User can now edit future breakpoints during pause!")
 
         # Loop until resume is received
         while is_paused:

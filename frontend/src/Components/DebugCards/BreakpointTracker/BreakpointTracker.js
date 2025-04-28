@@ -7,9 +7,11 @@ const stageData = {
   test: ["Running integration tests"],
 };
 
-const BreakpointButton = ({ stage, type, state, onClick }) => {
+const BreakpointButton = ({ stage, type, state, onClick, socket, canEdit }) => {
   let icon = null;
   let backColour = "#ccc";
+  let cursorStyle = canEdit ? "pointer" : "not-allowed";
+  let opacity = canEdit ? 1 : 0.5;
 
   switch (state) {
     case "pause":
@@ -31,11 +33,23 @@ const BreakpointButton = ({ stage, type, state, onClick }) => {
       break; // no icon for "inactive" to mimic whats shown in the FIGMA design
   }
 
+  const handleClick = () => {
+    if (!canEdit) return; 
+    if (state === "pause" && socket) {
+      socket.emit("pause");
+      onClick();
+    } else if (state === "waiting" && socket) {
+      socket.emit("resume"); 
+    } else {
+      onClick();
+    }
+  };
+
   return (
     <div
-      onClick={onClick}
+      onClick={handleClick}
       className={styles.breakpoint}
-      style={{ backgroundColor: backColour }}
+      style={{ backgroundColor: backColour, cursor: cursorStyle, opacity: opacity  }}
     >
       {icon ? (
         <img
@@ -50,7 +64,7 @@ const BreakpointButton = ({ stage, type, state, onClick }) => {
   );
 };
 
-const BreakpointTracker = ({ activeStage, breakpoints, onToggleBreakpoint }) => {
+const BreakpointTracker = ({ activeStage, breakpoints, onToggleBreakpoint, socket }) => {
   return (
     <div className={styles.card}>
       <h3>Configure breakpoints</h3>
@@ -67,6 +81,7 @@ const BreakpointTracker = ({ activeStage, breakpoints, onToggleBreakpoint }) => 
                     type="before"
                     state={breakpoints[stage]?.before || "inactive"}
                     onClick={() => onToggleBreakpoint(stage, "before")}
+                    socket={socket}
                   />
 
                   <div className={styles.stepLabel}>{step}</div>
@@ -76,6 +91,7 @@ const BreakpointTracker = ({ activeStage, breakpoints, onToggleBreakpoint }) => 
                     type="after"
                     state={breakpoints[stage]?.after || "inactive"}
                     onClick={() => onToggleBreakpoint(stage, "after")}
+                    socket={socket}
                   />
                 </div>
               ))}
