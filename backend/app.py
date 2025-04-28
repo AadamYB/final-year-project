@@ -206,6 +206,7 @@ def clone_or_pull(repo_url, local_repo_path):
     """ Clones a GitHub repository to a local directory or
         Pulls latest changes from the repository """
     
+    socketio.emit('active-stage-update', {'stage': 'setup'})
     pause_execution('setup', 'before')   # Can optionally pause a pileline before executing command
 
     if not os.path.exists(local_repo_path):
@@ -308,6 +309,8 @@ def format_project(local_repo_path):
 
 def build_project(local_repo_path):
     """ Builds the project inside a Docker container """
+
+    socketio.emit('active-stage-update', {'stage': 'build'})
     pause_execution('build', 'before')   # Can choose to pause pipeline if we want - according to user
 
     log(f"🏗️ Building project in {local_repo_path}", tag="build")
@@ -324,6 +327,8 @@ def build_project(local_repo_path):
 
 def run_tests(local_repo_path):
     """ Runs the test scripts for the user project also stream output """
+
+    socketio.emit('active-stage-update', {'stage': 'test'})
     pause_execution('test', 'before') 
 
     log(f"🧪 Running tests in {local_repo_path}", tag="test")
