@@ -169,6 +169,46 @@ def handle_update_breakpoints(data):
     # Notify the frontend
     socketio.emit("breakpoints-updated", {"breakpoints": breakpoints})
 
+@socketio.on('console-command')
+def handle_console_command(data):
+    command = data.get('command')
+    if not command:
+        emit('console-output', {'output': '❌ No command received'})
+        return
+
+    log(f"📟 Executing console command: {command}")
+
+    try:
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Paste output
+        for line in iter(process.stdout.readline, ''):
+            if line:
+                socketio.emit('console-output', {'output': line.strip()})
+        
+        # Show errors if any occur
+        for err_line in iter(process.stderr.readline, ''):
+            if err_line:
+                socketio.emit('console-output', {'output': f"❌ ERROR! {err_line.strip()}"})
+
+        process.stdout.close()
+        process.stderr.close()
+        process.wait()
+
+        if process.returncode == 0:
+            socketio.emit('console-output', {'output': '✅ Command finished successfully'})
+        else:
+            socketio.emit('console-output', {'output': f"❌ ERROR! Command exited with code {process.returncode}"})
+
+    except Exception as e:
+        socketio.emit('console-output', {'output': f"❌ ERROR! Exception: {str(e)}"})
+
 @socketio.on('pause')
 def handle_pause():
     global is_paused
