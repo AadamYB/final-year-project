@@ -215,11 +215,10 @@ def handle_console_command(data):
         emit('console-output', {'output': '❌ ERROR! Debug session not active.'})
         return
 
-    process = bash_sessions[repo_title]
+    process, master_fd = bash_sessions[repo_title]  # unpack the tuple
 
     try:
-        process.stdin.write(command + "\n")
-        process.stdin.flush()
+        os.write(master_fd, (command + "\n").encode())
     except Exception as e:
         emit('console-output', {'output': f"❌ Exception sending command: {str(e)}"})
 
