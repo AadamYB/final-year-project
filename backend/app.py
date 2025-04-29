@@ -154,6 +154,11 @@ def handle_connect():
 @socketio.on('start-debug')
 def start_debug_session(data):
     repo = data.get("repo")
+
+    if repo in bash_sessions and bash_sessions[repo]["process"].poll() is None:
+        log(f"[DEBUG] 🔁 Debug session already active for {repo}")
+        return
+    
     log(f"[DEBUG] 🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}")
 
     # Create interactive bash
@@ -161,7 +166,6 @@ def start_debug_session(data):
     container_name = f"{check_repo_title.lower()}-container"
 
     master_fd, slave_fd = pty.openpty()
-    
     process = subprocess.Popen(
         ["docker", "exec", "-i", container_name, "bash"],
         stdin=slave_fd,
@@ -625,7 +629,8 @@ def pause_execution(stage, when, repo_title):
             time.sleep(0.5)  # check every half second
 
 def ensure_debug_session_started(repo):
-    if repo not in bash_sessions:
+    session = bash_sessions.get(repo)
+    if session is None or session["process"].poll() is not None:
         start_debug_session({"repo": repo})
 # ------------------------------------------------------------
 
