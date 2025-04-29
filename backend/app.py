@@ -204,10 +204,10 @@ def handle_update_breakpoints(data):
 
 @socketio.on('console-command')
 def handle_console_command(data):
-    command = data.get('command')
+    char = data.get('command')
     repo_title = data.get('repoTitle')
 
-    if not command or not repo_title:
+    if not char or not repo_title:
         emit('console-output', {'output': '❌ ERROR! Missing command or repoTitle'})
         return
 
@@ -215,12 +215,11 @@ def handle_console_command(data):
         emit('console-output', {'output': '❌ ERROR! Debug session not active.'})
         return
 
-    process, master_fd = bash_sessions[repo_title]  # unpack the tuple
-
+    process, master_fd = bash_sessions[repo_title] # unpack the tuple
     try:
-        os.write(master_fd, (command + "\n").encode())
+        os.write(master_fd, char.encode())
     except Exception as e:
-        emit('console-output', {'output': f"❌ Exception sending command: {str(e)}"})
+        emit('console-output', {'output': f"❌ ERROR! Exception: {str(e)}"})
 
 @socketio.on('pause')
 def handle_pause():
