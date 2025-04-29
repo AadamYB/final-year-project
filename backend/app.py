@@ -6,6 +6,7 @@ import yaml
 from datetime import datetime, timezone
 import time
 import re
+import threading
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -16,6 +17,8 @@ breakpoints = {
     "build": {"before": False, "after": False},
     "test": {"before": False, "after": False},
 }
+
+bash_sessions = {}
 
 is_paused = False
 
@@ -141,11 +144,32 @@ def handle_connect():
 def start_debug_session(data):
     repo = data.get("repo")
     log(f"[DEBUG] 🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}")
-    log("[DEBUG] LOGS PAUSED ⏸️")
 
-    socketio.emit("debug-session-started", {
-        "repo_title": repo
-    })
+    # Create interactive bash
+    check_repo_title = re.sub(r'[^a-zA-Z0-9_\-]', '', repo)
+    container_name = f"{check_repo_title.lower()}-container"
+
+    process = subprocess.Popen(
+        f"docker exec -it {container_name} /bin/bash",
+        shell=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1
+    )
+
+    bash_sessions[repo] = process
+
+    socketio.emit("debug-session-started", {"repo_title": repo})
+
+    # Start listening for output
+    def listen_to_bash():
+        for line in iter(process.stdout.readline, ''):
+            if line:
+                socketio.emit('console-output', {'output': line.strip()})
+    
+    threading.Thread(target=listen_to_bash, daemon=True).start()
 
 @socketio.on('update-breakpoints')
 def handle_update_breakpoints(data):
@@ -178,54 +202,22 @@ def handle_update_breakpoints(data):
 def handle_console_command(data):
     command = data.get('command')
     repo_title = data.get('repoTitle')
-    if not command:
-        emit('console-output', {'output': '❌ ERROR! No command received'})
+
+    if not command or not repo_title:
+        emit('console-output', {'output': '❌ ERROR! Missing command or repoTitle'})
         return
-    
-    if not repo_title:
-        emit('console-output', {'output': '❌ ERROR! No repo title found'})
+
+    if repo_title not in bash_sessions:
+        emit('console-output', {'output': '❌ ERROR! Debug session not active.'})
         return
-    
-    # This line is for security to protect from injection attacks - like including rm -rf or something...
-    check_repo_title = re.sub(r'[^a-zA-Z0-9_\-]', '', repo_title)
 
-    container_name = f"{check_repo_title.lower()}-container"  
-
-    socketio.emit(f"📟 Executing console command inside container: {command}")
-
-    # Build docker exec command
-    docker_command = f"docker exec -i {container_name} /bin/bash -c \"{command}\""
+    process = bash_sessions[repo_title]
 
     try:
-        process = subprocess.Popen(
-            docker_command,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-
-        # Show the stdout
-        for line in iter(process.stdout.readline, ''):
-            if line:
-                socketio.emit('console-output', {'output': line.strip()})
-
-        # Show the stderr if any errors occur
-        for err_line in iter(process.stderr.readline, ''):
-            if err_line:
-                socketio.emit('console-output', {'output': f"❌ {err_line.strip()}"})
-
-        process.stdout.close()
-        process.stderr.close()
-        process.wait()
-
-        if process.returncode == 0:
-            socketio.emit('console-output', {'output': '✅ Command finished successfully'})
-        else:
-            socketio.emit('console-output', {'output': f"❌ Command exited with code {process.returncode}"})
-
+        process.stdin.write(command + "\n")
+        process.stdin.flush()
     except Exception as e:
-        socketio.emit('console-output', {'output': f"❌ Exception: {str(e)}"})
+        emit('console-output', {'output': f"❌ Exception sending command: {str(e)}"})
 
 @socketio.on('pause')
 def handle_pause():
@@ -242,6 +234,15 @@ def handle_resume():
 @socketio.on('disconnect')
 def handle_disconnect():
     log("🛜 WebSocket client disconnected ❌")
+    # Stop any active bash sessions
+    for repo, process in bash_sessions.items():
+        try:
+            process.stdin.write("exit\n")
+            process.stdin.flush()
+            process.terminate()
+        except Exception:
+            pass
+    bash_sessions.clear()
 
 # ---------------------------------------------------------------------------------------------
 # ------------------------------------ Utility Functions --------------------------------------
