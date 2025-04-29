@@ -8,6 +8,7 @@ import time
 import re
 import threading
 import pty
+from threading import Lock
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -20,6 +21,15 @@ breakpoints = {
 }
 
 bash_sessions = {}
+
+DEBUG_ASCII_ART = """
+-------------------------------------
+▖ ▘       ▌  ▌       ▘    
+▌ ▌▌▌█▌  ▛▌█▌▛▌▌▌▛▌▛▌▌▛▌▛▌
+▙▖▌▚▘▙▖  ▙▌▙▖▙▌▙▌▙▌▙▌▌▌▌▙▌
+                 ▄▌▄▌   ▄▌
+-------------------------------------
+"""
 
 is_paused = False
 
@@ -164,14 +174,18 @@ def start_debug_session(data):
     bash_sessions[repo] = {
         "process": process,
         "master_fd": master_fd,
-        "cwd": "~"
+        "cwd": "~",
+        "lock": Lock()  # this should fix the race conditions issue
     }
     socketio.emit("debug-session-started", {"repo_title": repo})
 
     def listen_to_bash():
+        socketio.emit('console-output', {'output': DEBUG_ASCII_ART})
+        
         while True:
             try:
-                output = os.read(master_fd, 1024).decode()
+                with bash_sessions[repo]["lock"]:
+                    output = os.read(master_fd, 1024).decode()
                 if output:
                     # Custom prompt - should be like this: " repo-name@13.40.55.105 ~$ "
                     user = repo.split("/")[-1]
@@ -240,7 +254,8 @@ def handle_console_command(data):
 
 
     try:
-        os.write(master_fd, char.encode())
+        with session["lock"]:
+            os.write(master_fd, char.encode())
     except Exception as e:
         emit('console-output', {'output': f"❌ ERROR! Exception: {str(e)}"})
 
