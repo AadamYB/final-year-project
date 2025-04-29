@@ -160,8 +160,12 @@ def start_debug_session(data):
         universal_newlines=True
     )
 
-    bash_sessions[repo] = (process, master_fd)
-
+    # to track the current working directory for each session
+    bash_sessions[repo] = {
+        "process": process,
+        "master_fd": master_fd,
+        "cwd": "~"
+    }
     socketio.emit("debug-session-started", {"repo_title": repo})
 
     def listen_to_bash():
@@ -169,7 +173,12 @@ def start_debug_session(data):
             try:
                 output = os.read(master_fd, 1024).decode()
                 if output:
-                    socketio.emit('console-output', {'output': output})
+                    # Custom prompt - should be like this: " repo-name@13.40.55.105 ~$ "
+                    user = repo.split("/")[-1]
+                    ip = "13.40.55.105"
+                    cwd = bash_sessions[repo]["cwd"]
+                    prompt = f"\n{user}@{ip} {cwd} ~$ "
+                    socketio.emit('console-output', {'output': output + prompt})
             except Exception:
                 break
     
@@ -211,11 +220,25 @@ def handle_console_command(data):
         emit('console-output', {'output': '❌ ERROR! Missing command or repoTitle'})
         return
 
-    if repo_title not in bash_sessions:
+    session = bash_sessions.get(repo_title)
+    if not session:
         emit('console-output', {'output': '❌ ERROR! Debug session not active.'})
         return
 
-    process, master_fd = bash_sessions[repo_title] # unpack the tuple
+    master_fd = session["master_fd"]
+    process = session["process"]
+
+    # Track `cd` commands
+    if char.startswith("cd "):
+        new_dir = char.strip().split("cd ")[-1].strip()
+        if new_dir == "..":
+            session["cwd"] = os.path.dirname(session["cwd"])
+        elif new_dir.startswith("/"):
+            session["cwd"] = new_dir
+        else:
+            session["cwd"] = os.path.normpath(os.path.join(session["cwd"], new_dir))
+
+
     try:
         os.write(master_fd, char.encode())
     except Exception as e:
