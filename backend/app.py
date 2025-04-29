@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import time
 import re
 import threading
+import pty
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -149,25 +150,28 @@ def start_debug_session(data):
     check_repo_title = re.sub(r'[^a-zA-Z0-9_\-]', '', repo)
     container_name = f"{check_repo_title.lower()}-container"
 
+    master_fd, slave_fd = pty.openpty()
+    
     process = subprocess.Popen(
-        f"docker exec -i {container_name} /bin/bash",
-        shell=True,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        bufsize=1
+        ["docker", "exec", "-it", container_name, "/bin/bash"],
+        stdin=slave_fd,
+        stdout=slave_fd,
+        stderr=slave_fd,
+        text=True
     )
 
-    bash_sessions[repo] = process
+    bash_sessions[repo] = (process, master_fd)
 
     socketio.emit("debug-session-started", {"repo_title": repo})
 
-    # Start listening for output
     def listen_to_bash():
-        for line in iter(process.stdout.readline, ''):
-            if line:
-                socketio.emit('console-output', {'output': line.strip()})
+        while True:
+            try:
+                output = os.read(master_fd, 1024).decode()
+                if output:
+                    socketio.emit('console-output', {'output': output})
+            except Exception:
+                break
     
     threading.Thread(target=listen_to_bash, daemon=True).start()
 
