@@ -150,7 +150,7 @@ def start_debug_session(data):
     container_name = f"{check_repo_title.lower()}-container"
 
     process = subprocess.Popen(
-        f"docker exec -it {container_name} /bin/bash",
+        f"docker exec -i {container_name} /bin/bash",
         shell=True,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
