@@ -55,7 +55,7 @@ def api_events():
             log(f"Received PR#{pr_number} for branch {pr_branch} in {repo_title}.")
 
             # First we clone the repository if it does not already exist, if so then pull changes
-            clone_or_pull(repo_url, local_repo_path)
+            clone_or_pull(repo_url, local_repo_path, repo_title)
 
             # Then checkout the PR branch
             checkout_branch(local_repo_path, pr_branch)
@@ -74,10 +74,10 @@ def api_events():
 
             # Trigger the buiild and testing of the project
             if ci_config.get("build", True):
-                build_project(local_repo_path)
+                build_project(local_repo_path, repo_title)
 
             if ci_config.get("test", True):
-                run_tests(local_repo_path)
+                run_tests(local_repo_path, repo_title)
 
             # If users add their own custom commands
             for cmd in ci_config.get("run_commands", []):
@@ -92,7 +92,7 @@ def api_events():
             log(f"Received push to {push_branch} in {repo_title}.")
 
             # First we clone the repository if it does not already exist, if so then pull changes
-            clone_or_pull(repo_url, local_repo_path)
+            clone_or_pull(repo_url, local_repo_path, repo_title)
 
             # Then checkout the PR branch
             checkout_branch(local_repo_path, push_branch)
@@ -111,10 +111,10 @@ def api_events():
 
             # Trigger the buiild and testing of the project
             if ci_config.get("build", True):
-                build_project(local_repo_path)
+                build_project(local_repo_path, repo_title)
 
             if ci_config.get("test", True):
-                run_tests(local_repo_path)
+                run_tests(local_repo_path, repo_title)
 
             # If users add their own custom commands
             for cmd in ci_config.get("run_commands", []):
@@ -260,12 +260,12 @@ def log(message, tag=None):
     socketio.emit('log', {'log': formatted_msg})
 
 
-def clone_or_pull(repo_url, local_repo_path):
+def clone_or_pull(repo_url, local_repo_path, repo_title):
     """ Clones a GitHub repository to a local directory or
         Pulls latest changes from the repository """
     
     socketio.emit('active-stage-update', {'stage': 'setup'})
-    pause_execution('setup', 'before')   # Can optionally pause a pileline before executing command
+    pause_execution('setup', 'before', repo_title)   # Can optionally pause a pileline before executing command
 
     if not os.path.exists(local_repo_path):
         log(f"🔄 Cloning {repo_url}")
@@ -276,7 +276,7 @@ def clone_or_pull(repo_url, local_repo_path):
         cmd = f"git -C {local_repo_path} pull"
         run_command_with_stream_output(cmd, tag="pull")
     
-    pause_execution('setup', 'after')
+    pause_execution('setup', 'after', repo_title)
 
 
 
@@ -365,11 +365,11 @@ def format_project(local_repo_path):
     run_command_with_stream_output(cmd, tag="format")
 
 
-def build_project(local_repo_path):
+def build_project(local_repo_path, repo_title):
     """ Builds the project inside a Docker container """
 
     socketio.emit('active-stage-update', {'stage': 'build'})
-    pause_execution('build', 'before')   # Can choose to pause pipeline if we want - according to user
+    pause_execution('build', 'before', repo_title)   # Can choose to pause pipeline if we want - according to user
 
     log(f"🏗️ Building project in {local_repo_path}", tag="build")
 
@@ -396,14 +396,14 @@ def build_project(local_repo_path):
 
     log(f"🚀 Container {container_name} running for debugging!", tag="build")
 
-    pause_execution('build', 'after')
+    pause_execution('build', 'after', repo_title)
 
 
-def run_tests(local_repo_path):
+def run_tests(local_repo_path, repo_title):
     """ Runs the test scripts for the user project also stream output """
 
     socketio.emit('active-stage-update', {'stage': 'test'})
-    pause_execution('test', 'before') 
+    pause_execution('test', 'before', repo_title) 
 
     log(f"🧪 Running tests in {local_repo_path}", tag="test")
 
@@ -457,7 +457,7 @@ def run_tests(local_repo_path):
 
     log("✅ All tests passed!", tag="test")
 
-    pause_execution('test', 'after') 
+    pause_execution('test', 'after', repo_title) 
 
 def load_ci_config(local_repo_path):
     """ This is for the  configuration page where users can update their ci pipline steps """
@@ -548,7 +548,7 @@ def run_command_with_stream_output(cmd, cwd=None, tag=None):
         raise Exception(error_message)
     
 
-def pause_execution(stage, when):
+def pause_execution(stage, when, repo_title):
     """ helper function that pauses an execution """
     global is_paused
 
@@ -556,6 +556,9 @@ def pause_execution(stage, when):
     if breakpoints.get(stage, {}).get(when, False):
         log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!")
         is_paused = True
+
+        socketio.emit("debug-session-started", {"repo_title": repo_title})
+        log(f"[DEBUG] 🐞 Debug session started automatically for {repo_title}")
 
         socketio.emit('allow-breakpoint-edit', {"stage": stage.upper(), "when": when.upper()})
         log("[DEBUG] 🔓 User can now edit future breakpoints during pause!")
