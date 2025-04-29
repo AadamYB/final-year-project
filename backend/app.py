@@ -558,8 +558,7 @@ def pause_execution(stage, when, repo_title):
         log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!")
         is_paused = True
 
-        socketio.emit("debug-session-started", {"repo_title": repo_title})
-        log(f"[DEBUG] 🐞 Debug session started automatically for {repo_title}")
+        start_debug_session({"repo": repo_title})
 
         socketio.emit('allow-breakpoint-edit', {"stage": stage.upper(), "when": when.upper()})
         log("[DEBUG] 🔓 User can now edit future breakpoints during pause!")
