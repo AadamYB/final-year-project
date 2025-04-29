@@ -50,10 +50,11 @@ const buildData = [
 ];
 
 const DebugPage = () => {
+  const [repoTitle, setRepoTitle] = useState("");
   const [selectedBuild, setSelectedBuild] = useState(buildData[0]);
   const [canEditBreakpoints, setCanEditBreakpoints] = useState(false);
   const [breakpoints, setBreakpoints] = useState(initialBreakpointStates);
-  const [activeStep, setActiveStep] = useState({
+  const [activeStage, setActiveStage] = useState({
     stage: "setup",
     step: "Cloning main repo",
   });
@@ -65,14 +66,26 @@ const DebugPage = () => {
       setLogs((prevLogs) => [...prevLogs, data.log]);
     });
 
+    socket.on("debug-session-started", (data) => {
+      console.log("⭐ Debugging repo:", data.repo_title);
+      setRepoTitle(data.repo_title);  // 🏹 Save the repoTitle dynamically
+    });
+
     socket.on("allow-breakpoint-edit", () => {
       console.log("✅ Breakpoints can now be edited");
       setCanEditBreakpoints(true);
+    });
+
+    socket.on("active-stage-update", (data) => {
+      console.log("🛠 Stage changed to:", data.stage);
+      setActiveStage({ stage: data.stage, step: "" }); 
     });
   
     return () => {
       socket.off("log");
       socket.off("allow-breakpoint-edit");
+      socket.off("active-stage-update");
+      socket.off("debug-session-started");
     };
   }, []);
 
@@ -164,7 +177,7 @@ const DebugPage = () => {
         <hr/>
 
         <BreakpointTracker
-          activeStage={activeStep}
+          activeStage={activeStage}
           breakpoints={breakpoints}
           onToggleBreakpoint={toggleBreakpoint}
           socket={socket}
@@ -172,7 +185,7 @@ const DebugPage = () => {
         />
 
         <StreamLogs logs={logs} />
-        <DebugConsole data={selectedBuild} />
+        <DebugConsole repoTitle={repoTitle} />
       </div>
     </div>
   );

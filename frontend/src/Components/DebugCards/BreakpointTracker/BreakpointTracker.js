@@ -34,12 +34,12 @@ const BreakpointButton = ({ stage, type, state, onClick, socket, canEdit }) => {
   }
 
   const handleClick = () => {
-    if (!canEdit) return; 
+    if (!canEdit) return;
     if (state === "pause" && socket) {
       socket.emit("pause");
       onClick();
     } else if (state === "waiting" && socket) {
-      socket.emit("resume"); 
+      socket.emit("resume");
     } else {
       onClick();
     }
@@ -49,7 +49,7 @@ const BreakpointButton = ({ stage, type, state, onClick, socket, canEdit }) => {
     <div
       onClick={handleClick}
       className={styles.breakpoint}
-      style={{ backgroundColor: backColour, cursor: cursorStyle, opacity: opacity  }}
+      style={{ backgroundColor: backColour, cursor: cursorStyle, opacity: opacity }}
     >
       {icon ? (
         <img
@@ -64,40 +64,51 @@ const BreakpointButton = ({ stage, type, state, onClick, socket, canEdit }) => {
   );
 };
 
-const BreakpointTracker = ({ activeStage, breakpoints, onToggleBreakpoint, socket }) => {
+const BreakpointTracker = ({ activeStage, breakpoints, onToggleBreakpoint, socket, canEdit }) => {
   return (
     <div className={styles.card}>
       <h3>Configure breakpoints</h3>
-      <hr/>
+      <hr />
       <div className={styles.groupContainer}>
-        {Object.entries(stageData).map(([stage, steps]) => (
-          <div key={stage} className={styles.stageContainer}>
-            <h4>{stage.charAt(0).toUpperCase() + stage.slice(1)}</h4>
-            <div className={styles.options}>
-              {steps.map((step) => (
-                <div key={step} className={styles.stepRow}>
-                  <BreakpointButton
-                    stage={stage}
-                    type="before"
-                    state={breakpoints[stage]?.before || "inactive"}
-                    onClick={() => onToggleBreakpoint(stage, "before")}
-                    socket={socket}
-                  />
+        {Object.entries(stageData).map(([stage, steps]) => {
+          const isActiveStage = activeStage.stage === stage;
 
-                  <div className={styles.stepLabel}>{step}</div>
-
-                  <BreakpointButton
-                    stage={stage}
-                    type="after"
-                    state={breakpoints[stage]?.after || "inactive"}
-                    onClick={() => onToggleBreakpoint(stage, "after")}
-                    socket={socket}
-                  />
-                </div>
-              ))}
+          return (
+            <div
+              key={stage}
+              className={styles.stageContainer}
+              style={{
+                border: isActiveStage ? "3px solid #04a447" : "",
+                boxShadow: isActiveStage ? "0 0 10px #04a447" : "inset 0 0 3px rgba(0, 0, 0, 0.1)",
+              }}
+            >
+              <h4>{stage.charAt(0).toUpperCase() + stage.slice(1)}</h4>
+              <div className={styles.options}>
+                {steps.map((step) => (
+                  <div key={step} className={styles.stepRow}>
+                    <BreakpointButton
+                      stage={stage}
+                      type="before"
+                      state={breakpoints[stage]?.before || "inactive"}
+                      onClick={() => onToggleBreakpoint(stage, "before")}
+                      socket={socket}
+                      canEdit={canEdit}
+                    />
+                    <div className={styles.stepLabel}>{step}</div>
+                    <BreakpointButton
+                      stage={stage}
+                      type="after"
+                      state={breakpoints[stage]?.after || "inactive"}
+                      onClick={() => onToggleBreakpoint(stage, "after")}
+                      socket={socket}
+                      canEdit={canEdit}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

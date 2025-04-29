@@ -5,6 +5,7 @@ from flask_socketio import SocketIO, emit
 import yaml
 from datetime import datetime, timezone
 import time
+import re
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -142,6 +143,10 @@ def start_debug_session(data):
     log(f"[DEBUG] 🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}")
     log("[DEBUG] LOGS PAUSED ⏸️")
 
+    socketio.emit("debug-session-started", {
+        "repo_title": repo
+    })
+
 @socketio.on('update-breakpoints')
 def handle_update_breakpoints(data):
     global breakpoints
@@ -172,30 +177,43 @@ def handle_update_breakpoints(data):
 @socketio.on('console-command')
 def handle_console_command(data):
     command = data.get('command')
+    repo_title = data.get('repoTitle')
     if not command:
-        emit('console-output', {'output': '❌ No command received'})
+        emit('console-output', {'output': '❌ ERROR! No command received'})
         return
+    
+    if not repo_title:
+        emit('console-output', {'output': '❌ ERROR! No repo title found'})
+        return
+    
+    # This line is for security to protect from injection attacks - like including rm -rf or something...
+    check_repo_title = re.sub(r'[^a-zA-Z0-9_\-]', '', repo_title)
 
-    log(f"📟 Executing console command: {command}")
+    container_name = f"{check_repo_title.lower()}-container"  
+
+    socketio.emit(f"📟 Executing console command inside container: {command}")
+
+    # Build docker exec command
+    docker_command = f"docker exec -i {container_name} /bin/bash -c \"{command}\""
 
     try:
         process = subprocess.Popen(
-            command,
+            docker_command,
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
         )
-        
-        # Paste output
+
+        # Show the stdout
         for line in iter(process.stdout.readline, ''):
             if line:
                 socketio.emit('console-output', {'output': line.strip()})
-        
-        # Show errors if any occur
+
+        # Show the stderr if any errors occur
         for err_line in iter(process.stderr.readline, ''):
             if err_line:
-                socketio.emit('console-output', {'output': f"❌ ERROR! {err_line.strip()}"})
+                socketio.emit('console-output', {'output': f"❌ {err_line.strip()}"})
 
         process.stdout.close()
         process.stderr.close()
@@ -204,10 +222,10 @@ def handle_console_command(data):
         if process.returncode == 0:
             socketio.emit('console-output', {'output': '✅ Command finished successfully'})
         else:
-            socketio.emit('console-output', {'output': f"❌ ERROR! Command exited with code {process.returncode}"})
+            socketio.emit('console-output', {'output': f"❌ Command exited with code {process.returncode}"})
 
     except Exception as e:
-        socketio.emit('console-output', {'output': f"❌ ERROR! Exception: {str(e)}"})
+        socketio.emit('console-output', {'output': f"❌ Exception: {str(e)}"})
 
 @socketio.on('pause')
 def handle_pause():
@@ -359,8 +377,24 @@ def build_project(local_repo_path):
     if not os.path.exists(dockerfile_path):
         raise Exception(f"❌ ERROR! No Dockerfile found at {dockerfile_path}")
 
-    cmd = f"docker build -t project-image {local_repo_path}"
-    run_command_with_stream_output(cmd, tag="build")
+    # Create docker-(image and/or container) name based on repo
+    repo_title = os.path.basename(local_repo_path)
+    image_name = f"{repo_title.lower()}-image"
+    container_name = f"{repo_title.lower()}-container"
+
+    # Build docker image
+    run_command_with_stream_output(f"docker build -t {image_name} {local_repo_path}", tag="build")
+
+    # Stop and remove old container if exists
+    run_command_with_stream_output(f"docker rm -f {container_name} || true", tag="build")
+
+    # Start container in background
+    run_command_with_stream_output(
+        f"docker run -d --name {container_name} -v {local_repo_path}:/app {image_name} tail -f /dev/null",
+        tag="build"
+    )
+
+    log(f"🚀 Container {container_name} running for debugging!", tag="build")
 
     pause_execution('build', 'after')
 
