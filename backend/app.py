@@ -153,11 +153,11 @@ def start_debug_session(data):
     master_fd, slave_fd = pty.openpty()
     
     process = subprocess.Popen(
-        ["docker", "exec", "-it", container_name, "/bin/bash"],
+        ["docker", "exec", "-i", container_name, "bash"],
         stdin=slave_fd,
         stdout=slave_fd,
         stderr=slave_fd,
-        text=True
+        universal_newlines=True
     )
 
     bash_sessions[repo] = (process, master_fd)
