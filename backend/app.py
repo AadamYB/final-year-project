@@ -180,29 +180,45 @@ def start_debug_session(data):
     socketio.emit("debug-session-started", {"repo_title": repo})
 
     def listen_to_bash():
-        socketio.emit('console-output', {'output': DEBUG_ASCII_ART})
-        
+        ascii_shown = False
         while True:
             try:
                 with bash_sessions[repo]["lock"]:
                     output = os.read(master_fd, 1024).decode()
+
+                 # Custom prompt - should be like this: " repo-name@13.40.55.105 ~$ "
                 if output:
-                    # Custom prompt - should be like this: " repo-name@13.40.55.105 ~$ "
                     user = repo.split("/")[-1]
                     ip = "13.40.55.105"
                     cwd = bash_sessions[repo]["cwd"]
                     prompt = f"\n{user}@{ip} {cwd} ~$ "
+                    
+                    if not ascii_shown:
+                        output = DEBUG_ASCII_ART + "\n" + output
+                        ascii_shown = True
+
                     socketio.emit('console-output', {'output': output + prompt})
             except Exception:
                 break
     
     threading.Thread(target=listen_to_bash, daemon=True).start()
 
+@socketio.on("stop-debug")
+def stop_debug(data):
+    repo = data.get("repo")
+    session = bash_sessions.get(repo)
+    if session:
+        try:
+            log(f"[DEBUG] 🛑 Terminating debug session for {repo}")
+            session["process"].terminate()
+        except Exception as e:
+            log(f"[DEBUG] ⚠️ Warning! Could not terminate session: {e}")
+        bash_sessions.pop(repo, None)
+
 @socketio.on('update-breakpoints')
 def handle_update_breakpoints(data):
     global breakpoints
 
-    # Validate data (to prevent invalid shapes)
     expected_stages = {"setup", "build", "test"}
     expected_keys = {"before", "after"}
 
@@ -592,6 +608,7 @@ def run_command_with_stream_output(cmd, cwd=None, tag=None):
 def pause_execution(stage, when, repo_title):
     """ helper function that pauses an execution """
     global is_paused
+    ensure_debug_session_started(repo_title)
 
     # Check if the current stage needs to be paused and also when it needs to be paused
     if breakpoints.get(stage, {}).get(when, False):
@@ -606,7 +623,10 @@ def pause_execution(stage, when, repo_title):
         # Loop until resume is received
         while is_paused:
             time.sleep(0.5)  # check every half second
-    
+
+def ensure_debug_session_started(repo):
+    if repo not in bash_sessions:
+        start_debug_session({"repo": repo})
 # ------------------------------------------------------------
 
 if __name__ == "__main__":
