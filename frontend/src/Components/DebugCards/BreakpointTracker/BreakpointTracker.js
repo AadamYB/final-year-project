@@ -7,54 +7,62 @@ const stageData = {
   test: ["Running integration tests"],
 };
 
-const BreakpointButton = ({ stage, type, state, onClick, socket, canEdit }) => {
-  let icon = null;
-  let backColour = "#ccc";
-  let cursorStyle = canEdit ? "pointer" : "not-allowed";
-  let opacity = canEdit ? 1 : 0.5;
+const determineVisualState = ({
+  stage,
+  type,
+  isActive,
+  isPaused,
+  resumeTarget,
+  resumedPoint,
+  stageIndex,
+  activeIndex,
+}) => {
+  const isCurrentPause =
+    isPaused &&
+    resumeTarget?.stage === stage &&
+    resumeTarget?.type === type;
 
-  switch (state) {
-    case "pause":
-      icon = "pause.png";
-      break;
-    case "waiting":
-      icon = "pause.png";
-      backColour = "#FEA602";
-      break;
-    case "play":
-      icon = "play.png";
-      backColour = "#FEA602";
-      break;
-    case "done":
-      icon = "tick.png";
-      backColour = "#64D755";
-      break;
-    default:
-      break; // no icon for "inactive" to mimic whats shown in the FIGMA design
+  const wasResumed =
+    resumedPoint?.stage === stage &&
+    resumedPoint?.type === type;
+
+  const isFuture = stageIndex >= activeIndex;
+
+  if (wasResumed) {
+    return { icon: "tick.png", backgroundColor: "#64D755", canClick: false };
   }
 
+  if (isCurrentPause) {
+    return { icon: "play.png", backgroundColor: "#FEA602", canClick: true };
+  }
+
+  if (isActive) {
+    return { icon: "pause.png", backgroundColor: "#ccc", canClick: isFuture };
+  }
+
+  return { icon: null, backgroundColor: "#ccc", canClick: isFuture };
+};
+
+const BreakpointButton = ({ icon, backgroundColor, onClick, canClick }) => {
   const handleClick = () => {
-    if (!canEdit) return;
-    if (state === "pause" && socket) {
-      socket.emit("pause");
-      onClick();
-    } else if (state === "waiting" && socket) {
-      socket.emit("resume");
-    } else {
-      onClick();
-    }
+    if (!canClick) return;
+    onClick();
   };
 
   return (
     <div
       onClick={handleClick}
       className={styles.breakpoint}
-      style={{ backgroundColor: backColour, cursor: cursorStyle, opacity: opacity }}
+      style={{
+        backgroundColor,
+        cursor: canClick ? "pointer" : "not-allowed",
+        opacity: canClick ? 1 : 0.4,
+      }}
     >
       {icon ? (
         <img
           src={`${process.env.PUBLIC_URL}/icons/${icon}`}
-          alt={state}
+          alt={icon}
           className={styles.breakpointIcon}
         />
       ) : (
@@ -64,7 +72,19 @@ const BreakpointButton = ({ stage, type, state, onClick, socket, canEdit }) => {
   );
 };
 
-const BreakpointTracker = ({ activeStage, breakpoints, onToggleBreakpoint, socket, canEdit }) => {
+const BreakpointTracker = ({
+  activeStage,
+  breakpoints,
+  onToggleBreakpoint,
+  socket,
+  canEdit,
+  isPaused,
+  resumeTarget,
+  resumedPoint,
+}) => {
+  const stageOrder = ["setup", "build", "test"];
+  const activeIndex = stageOrder.indexOf(activeStage.stage);
+
   return (
     <div className={styles.card}>
       <h3>Configure breakpoints</h3>
@@ -72,6 +92,7 @@ const BreakpointTracker = ({ activeStage, breakpoints, onToggleBreakpoint, socke
       <div className={styles.groupContainer}>
         {Object.entries(stageData).map(([stage, steps]) => {
           const isActiveStage = activeStage.stage === stage;
+          const stageIndex = stageOrder.indexOf(stage);
 
           return (
             <div
@@ -79,32 +100,54 @@ const BreakpointTracker = ({ activeStage, breakpoints, onToggleBreakpoint, socke
               className={styles.stageContainer}
               style={{
                 border: isActiveStage ? "3px solid #04a447" : "",
-                boxShadow: isActiveStage ? "0 0 10px #04a447" : "inset 0 0 3px rgba(0, 0, 0, 0.1)",
+                boxShadow: isActiveStage
+                  ? "0 0 10px #04a447"
+                  : "inset 0 0 3px rgba(255, 255, 255, 0.1)",
               }}
             >
               <h4>{stage.charAt(0).toUpperCase() + stage.slice(1)}</h4>
               <div className={styles.options}>
-                {steps.map((step) => (
-                  <div key={step} className={styles.stepRow}>
-                    <BreakpointButton
-                      stage={stage}
-                      type="before"
-                      state={breakpoints[stage]?.before || "inactive"}
-                      onClick={() => onToggleBreakpoint(stage, "before")}
-                      socket={socket}
-                      canEdit={canEdit}
-                    />
-                    <div className={styles.stepLabel}>{step}</div>
-                    <BreakpointButton
-                      stage={stage}
-                      type="after"
-                      state={breakpoints[stage]?.after || "inactive"}
-                      onClick={() => onToggleBreakpoint(stage, "after")}
-                      socket={socket}
-                      canEdit={canEdit}
-                    />
-                  </div>
-                ))}
+                {steps.map((step) => {
+                  const beforeState = determineVisualState({
+                    stage,
+                    type: "before",
+                    isActive: breakpoints[stage]?.before,
+                    isPaused,
+                    resumeTarget,
+                    resumedPoint,
+                    stageIndex,
+                    activeIndex,
+                  });
+
+                  const afterState = determineVisualState({
+                    stage,
+                    type: "after",
+                    isActive: breakpoints[stage]?.after,
+                    isPaused,
+                    resumeTarget,
+                    resumedPoint,
+                    stageIndex,
+                    activeIndex,
+                  });
+
+                  return (
+                    <div key={step} className={styles.stepRow}>
+                      <BreakpointButton
+                        icon={beforeState.icon}
+                        backgroundColor={beforeState.backgroundColor}
+                        onClick={() => onToggleBreakpoint(stage, "before")}
+                        canClick={canEdit && beforeState.canClick}
+                      />
+                      <div className={styles.stepLabel}>{step}</div>
+                      <BreakpointButton
+                        icon={afterState.icon}
+                        backgroundColor={afterState.backgroundColor}
+                        onClick={() => onToggleBreakpoint(stage, "after")}
+                        canClick={canEdit && afterState.canClick}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );

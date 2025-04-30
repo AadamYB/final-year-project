@@ -1,19 +1,32 @@
 .container {
+  width: 100%;
   background: #e6e6e6;
   border-radius: 8px;
   padding: 12px;
   font-family: monospace;
   font-size: 14px;
-  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.logContent {
+  min-height: 220px;
+  max-height: 400px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #fff;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
 }
 
 .title {
+  text-align: center;
   margin: 0 0 8px 4px;
   font-weight: bold;
   font-size: 16px;
 }
 
-.logContent {
+/* .logContent {
   height: 220px;
   overflow-y: auto;
   padding: 10px;
@@ -21,10 +34,11 @@
   border-radius: 6px;
   border: 1px solid #ccc;
   text-align: left;
-}
+} */
 
 .logLine {
   white-space: pre-wrap;
+  overflow-x: auto;
   padding: 2px 0;
   text-align: left;
   line-height: 1.3; /* Even out the spacing between lines do that emojis do not mess up the gaps */

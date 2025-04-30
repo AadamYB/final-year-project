@@ -6,128 +6,106 @@ import StreamLogs from "../Components/DebugCards/StreamLogs/StreamLogs";
 import DebugConsole from "../Components/DebugCards/DebugConsole/DebugConsole";
 import io from "socket.io-client";
 
-const socket = io("http://13.40.55.105:5000"); // the backend endpoint - EC2 ip address and the port the flask app is running on
+const socket = io("http://13.40.55.105:5000");
 
-// mock logs for viewing what the expected backend streamed logs will look like
-const mockLogs = [
-    "[2025-01-14     17:54:46 ] RUNNING CMD mkdir tmp-repo",
-    "[2025-01-14     17:54:48 ] RUNNING CMD cd tmp-repo",
-    "[2025-01-14     17:55:09 ] git clone https://github.com/user/repo.git",
-    "[2025-01-14     17:55:10 ] Cloning into ‘...’ ...",
-    "[2025-01-14     17:55:50 ] remote: Counting objects: 100, done.",
-    "[2025-01-14     17:56:03 ] remote: Compressing objects: 100% (84/84), done.",
-    "[2025-01-14     17:56:04 ] remove: Total 100 (delta 16), reused 100 (delta 16)",
-    "[2025-01-14     17:56:09 ] Unpacking objects: 100% (100/100), done.",
-    "[2025-01-14     17:56:09 ] 🐞STARTING LIVE DEBUGGING SESSION🪲",
-    "[2025-01-14     17:56:09 ] LOGS PAUSED ⏸️",
-  ];
+const stageOrder = ["setup", "build", "test"];
 
 const initialBreakpointStates = {
-  setup: { before: "inactive", after: "inactive" },
-  build: { before: "inactive", after: "inactive" },
-  test: { before: "inactive", after: "inactive" },
+  setup: { before: false, after: false },
+  build: { before: false, after: false },
+  test: { before: false, after: false },
 };
 
 const buildData = [
-  {
-    status: "Pending",
-    prName: "Software 0.3 update tests",
-    date: "21/03/25",
-    time: "18:04"
-  },
-  {
-    status: "Failed",
-    prName: "Software 1.4 update tests",
-    date: "21/03/25",
-    time: "13:34"
-  },
-  {
-    status: "Passed",
-    prName: "Software 0.2 update tests",
-    date: "21/03/25",
-    time: "07:54"
-  },
+  { status: "Pending", prName: "Software 0.3 update tests", date: "21/03/25", time: "18:04" },
+  { status: "Failed", prName: "Software 1.4 update tests", date: "21/03/25", time: "13:34" },
+  { status: "Passed", prName: "Software 0.2 update tests", date: "21/03/25", time: "07:54" },
 ];
 
 const DebugPage = () => {
   const [repoTitle, setRepoTitle] = useState("");
   const [selectedBuild, setSelectedBuild] = useState(buildData[0]);
+  const [isPaused, setIsPaused] = useState(false);
+  const [resumeTarget, setResumeTarget] = useState(null);
+  const [resumedPoint, setResumedPoint] = useState(null);
   const [canEditBreakpoints, setCanEditBreakpoints] = useState(false);
   const [breakpoints, setBreakpoints] = useState(initialBreakpointStates);
   const [activeStage, setActiveStage] = useState({
     stage: "setup",
     step: "Cloning main repo",
   });
-
-  // Listen for any logs from backend
   const [logs, setLogs] = useState([]);
+
   useEffect(() => {
     socket.on("log", (data) => {
       setLogs((prevLogs) => [...prevLogs, data.log]);
     });
 
+    socket.on("pause-configured", ({ breakpoints }) => {
+      console.log("🧩 Initial breakpoints configured from backend:", breakpoints);
+      setBreakpoints(breakpoints);
+    });
+  
+
     socket.on("debug-session-started", (data) => {
       console.log("⭐ Debugging repo:", data.repo_title);
-      setRepoTitle(data.repo_title);  // 🏹 Save the repoTitle dynamically
+      setRepoTitle(data.repo_title);
+      setResumedPoint(null);
     });
 
-    socket.on("allow-breakpoint-edit", () => {
+    socket.on("allow-breakpoint-edit", ({ stage, when }) => {
       console.log("✅ Breakpoints can now be edited");
       setCanEditBreakpoints(true);
+      setIsPaused(true);
+      setResumeTarget({ stage: stage.toLowerCase(), type: when.toLowerCase() });
     });
 
     socket.on("active-stage-update", (data) => {
       console.log("🛠 Stage changed to:", data.stage);
-      setActiveStage({ stage: data.stage, step: "" }); 
+      setActiveStage({ stage: data.stage, step: "" });
+      setResumeTarget(null);
+      setResumedPoint(null); // Reset resume visuals
     });
-  
+
     return () => {
       socket.off("log");
       socket.off("allow-breakpoint-edit");
       socket.off("active-stage-update");
       socket.off("debug-session-started");
+      socket.off("pause-configured");
     };
   }, []);
 
-  // this function is used to allow users to interrupt their pipelines
   const toggleBreakpoint = (stage, type) => {
-    if (!canEditBreakpoints) return; 
-
+    if (!canEditBreakpoints) return;
+  
+    const isResumePoint = resumeTarget?.stage === stage && resumeTarget?.type === type;
+    const isPastStage = stageOrder.indexOf(stage) < stageOrder.indexOf(activeStage.stage);
+  
+    // Prevent toggling past or already resumed breakpoints
+    if (isPastStage || (resumedPoint?.stage === stage && resumedPoint?.type === type)) return;
+  
     setBreakpoints((prev) => {
-      const current = prev[stage][type];
-      let next;
-      switch (current) {
-        case "inactive":
-          next = "pause";
-          break;
-        case "pause":
-          next = "waiting";
-          break;
-        case "waiting":
-          next = "play";
-          break;
-        case "play":
-          next = "done";
-          break;
-        case "done":
-          next = "inactive";
-          break;
-        default:
-          next = "inactive";
-      }
-
+      const currentValue = prev[stage][type];
+  
       const updated = {
-      ...prev,
-      [stage]: {
-        ...prev[stage],
-        [type]: next,
-      },
-    };
-
-    // should send updated breakpoints to backend
-    socket.emit("update-breakpoints", updated);
-
-    return updated;
+        ...prev,
+        [stage]: {
+          ...prev[stage],
+          [type]: !currentValue, // toggle normally
+        },
+      };
+  
+      socket.emit("update-breakpoints", updated);
+  
+      if (isResumePoint && currentValue === true) {
+        socket.emit("resume");
+        setIsPaused(false);
+        setCanEditBreakpoints(false);
+        setResumedPoint({ stage, type });
+      }
+  
+      return updated;
     });
   };
 
@@ -148,33 +126,16 @@ const DebugPage = () => {
       </div>
 
       <div className={styles.mainContentContainer}>
+        <h1 className={styles.buildTitle}>
+          <img
+            src={`${process.env.PUBLIC_URL}/icons/pending.png`}
+            alt={selectedBuild.status}
+            className={styles.statusIcon}
+          />
+          {selectedBuild.status} - {selectedBuild.prName}
+        </h1>
 
-            <h1 className={styles.buildTitle}>
-            {selectedBuild.status === "Passed" && (
-                <img
-                src={`${process.env.PUBLIC_URL}/icons/pending.png`}
-                alt="Passed"
-                className={styles.statusIcon}
-                />
-            )}
-            {selectedBuild.status === "Failed" && (
-                <img
-                src={`${process.env.PUBLIC_URL}/icons/pending.png`}
-                alt="Failed"
-                className={styles.statusIcon}
-                />
-            )}
-            {selectedBuild.status === "Pending" && (
-                <img
-                src={`${process.env.PUBLIC_URL}/icons/pending.png`}
-                alt="Pending"
-                className={styles.statusIcon}
-                />
-            )}
-            {selectedBuild.status} - {selectedBuild.prName}
-            </h1>
-
-        <hr/>
+        <hr />
 
         <BreakpointTracker
           activeStage={activeStage}
@@ -182,6 +143,9 @@ const DebugPage = () => {
           onToggleBreakpoint={toggleBreakpoint}
           socket={socket}
           canEdit={canEditBreakpoints}
+          resumeTarget={resumeTarget}
+          resumedPoint={resumedPoint}
+          isPaused={isPaused}
         />
 
         <StreamLogs logs={logs} />

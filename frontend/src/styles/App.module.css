@@ -4,11 +4,13 @@
 /* Base container for the entire app */
 .App {
   display: grid;
-  grid-template-columns: auto 1fr;  /* menu bar in first column, scalable content in second */
-  text-align: center;
+  grid-template-columns: auto 1fr;
   background-color: #5F6366;
   height: 100vh;
+  width: 100vw;
   overflow: hidden;
+  padding: 10px;
+  box-sizing: border-box;
 }
 
 .menuBar {
@@ -19,10 +21,8 @@
   flex-direction: column;
   align-items: center;
   background: #B0B0B0;
-  height: 97.7vh;
+  height: 100%;
   border-radius: 20px;
-  margin: 10px;
-  margin-right: 10px;
   gap: 5px;
 }
 

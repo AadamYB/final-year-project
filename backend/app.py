@@ -236,19 +236,22 @@ def handle_update_breakpoints(data):
         log("❌ ERROR! Invalid breakpoint update: not a dict!")
         return
 
+    # Validate structure of the breakpoint dict & its types
     for stage, points in data.items():
         if stage not in expected_stages:
-            log(f"❌ ERROR! Invalid stage in breakpoint update: {stage}")
+            log(f"❌ ERROR! Invalid stage: {stage}")
             return
-        if not isinstance(points, dict) or not expected_keys.issubset(points.keys()):
-            log(f"❌ ERROR! Invalid keys for stage {stage}: expected 'before' and 'after'")
+        if not isinstance(points, dict):
+            log(f"❌ ERROR! {stage} should be a dict")
             return
+        for key in expected_keys:
+            if key not in points or not isinstance(points[key], bool):
+                log(f"❌ ERROR! Invalid breakpoint type for {stage}.{key}")
+                return
 
-    # If valid, update global breakpoints
+    # Save updated breakpoints
     breakpoints = data
     log(f"[DEBUG] ✅ Breakpoints updated to: {breakpoints}")
-
-    # Notify the frontend
     socketio.emit("breakpoints-updated", {"breakpoints": breakpoints})
 
 @socketio.on('console-command')
