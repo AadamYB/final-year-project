@@ -1,101 +1,45 @@
 .container {
-    background: #e6e6e6;
-    border-radius: 8px;
-    padding: 12px;
-    margin-top: 10px;
-    font-family: monospace;
-    font-size: 14px;
-    overflow: hidden;
-  }
-  
-  .bugIcon {
-    width: 30px;
-    height: 30px;
-    margin-right: 5px;
-  }
-  
-  .debugTitle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0;
-  }
-  
-  .debugTitle h3,
-  hr {
-    margin: 0;
-  }
-  
-  /* Terminal wrapper */
-  .terminal {
-    background-color: #505050;
-    color: #ffffff;
-    height: 31vh;
-    padding: 0.7rem;
-    box-sizing: border-box;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-  }
-  
-  /* Output lines */
-  .console {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    white-space: pre-wrap;
-    gap: 1px;
-  }
-  
-  /* History output */
-  .consoleLine {
-    text-align: left;
-    word-break: break-word;
-    margin: 0;
-    line-height: 1.2;
-  }
-  
-  .inputLine {
-    display: flex;
-    align-items: center;
-    font-family: monospace;
-    font-size: 14px;
-    line-height: 1.2;
-    white-space: pre;
-  }
-  
-  .displayedWrapper {
-    display: flex;
-    align-items: center;
-    min-height: 1.2em; 
-  }
-  
-  .displayedInput {
-    color: #ffffff;
-    font-family: monospace;
-    font-size: 14px;
-    white-space: pre; 
-  }
-  
-  .cursor {
-    width: 8px;
-    height: 1.1em;
-    background-color: white;
-    animation: blink 1.5s steps(1) infinite;
-    display: inline-block;
-  }
-  
-  .hiddenInput {
-    position: absolute;
-    left: -9999px; /* keep the input box hidden so that its not in the way */
-  }
-  
-  @keyframes blink {
-    0%, 50%, 100% {
-      opacity: 1;
-    }
-    25%, 75% {
-      opacity: 0;
-    }
-  }
+  background: #e6e6e6;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 10px;
+  font-family: monospace;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+.bugIcon {
+  width: 30px;
+  height: 30px;
+  margin-right: 5px;
+}
+
+.debugTitle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}
+
+.debugTitle h3,
+hr {
+  margin: 0;
+}
+
+.terminalWrapper {
+  background-color: #1e1e1e;
+  border-radius: 5px;
+  height: 33vh; /* or adjust */
+  overflow: hidden;
+  margin-top: 10px;
+  padding: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminalContainer {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}

@@ -1,46 +1,58 @@
-import React, { useState, useEffect, useRef } from "react";
-import styles from "./DebugConsole.module.css";
+import React, { useEffect, useRef } from "react";
+import { Terminal } from "xterm";
+import "xterm/css/xterm.css";
 import io from "socket.io-client";
-const socket = io("http://13.40.55.105:5000"); // (already existing socket)
+import styles from "./DebugConsole.module.css";
 
-const DebugConsole = ({repoTitle}) => {
-  const [input, setInput] = useState("");
-  const [history, setHistory] = useState([]);
-  const inputRef = useRef();
-  const bottomRef = useRef();
+const socket = io("http://13.40.55.105:5000");
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+const DebugConsole = ({ repoTitle }) => {
+  const terminalRef = useRef();
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [history]);
-
-  useEffect(() => {
-    socket.on("console-output", (data) => {
-      setHistory((prev) => [...prev, data.output]);
+    if (!repoTitle) return;
+  
+    const term = new Terminal({
+      fontFamily: "monospace",
+      fontSize: 14,
+      theme: {
+        background: "#1e1e1e",
+        foreground: "#d4d4d4",
+      },
+      cursorBlink: true,
+      scrollback: 500,
     });
-
+  
+    term.open(terminalRef.current);
+    term.focus();
+    term.write('\r\n');
+  
+    // Input handler
+    term.onData(data => {
+      socket.emit("console-command", {
+        command: data,
+        repoTitle,
+      });
+    });
+  
+    // Output handler to show our cmd stdout in the terminal
+    socket.on("console-output", (data) => {
+      term.write(data.output);
+    });
+  
+    // Only able to debug after repoTitle exists
+    socket.emit("start-debug", { repo: repoTitle });
+  
     return () => {
+      socket.emit("stop-debug", { repo: repoTitle });
       socket.off("console-output");
+      term.dispose();
     };
-  }, []);
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      const prompt = "user@ip-address:~$ ";
-      const fullInput = prompt + input;
-      setHistory((prev) => [...prev, fullInput]);
-
-      socket.emit("console-command", { command: input, repoTitle });  
-      setInput("");
-    }
-  };
+  }, [repoTitle]);
 
   return (
     <div className={styles.container}>
-      <div className={styles.debugTitle}>
+        <div className={styles.debugTitle}>
         <img
           src={`${process.env.PUBLIC_URL}/icons/bug.png`}
           alt="BUG"
@@ -49,31 +61,8 @@ const DebugConsole = ({repoTitle}) => {
         <h3> Debug Console </h3>
       </div>
       <hr />
-      <div className={styles.terminal} onClick={() => inputRef.current?.focus()}>
-        <div className={styles.console}>
-          {history.map((line, i) => (
-            <pre key={i} className={styles.consoleLine}>
-              {line}
-            </pre>
-          ))}
-          <div className={styles.inputLine}>
-            <span className={styles.prompt}>user@ip-address:~$ </span>
-            <span className={styles.displayedWrapper}>
-              <span className={styles.displayedInput}>{input}</span>
-              <span className={styles.cursor}></span>
-            </span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className={styles.hiddenInput}
-              autoComplete="off"
-            />
-            <div ref={bottomRef} />
-          </div>
-        </div>
+      <div className={styles.terminalWrapper}>
+        <div ref={terminalRef} className={styles.terminalContainer} />
       </div>
     </div>
   );
