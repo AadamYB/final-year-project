@@ -616,14 +616,15 @@ def run_command_with_stream_output(cmd, cwd=None, tag=None):
 def pause_execution(stage, when, build_id, repo_title):
     """ helper function that pauses an execution """
     global is_paused
-    ensure_debug_session_started(build_id, repo_title)
 
     # Check if the current stage needs to be paused and also when it needs to be paused
     if breakpoints.get(stage, {}).get(when, False):
         log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!")
         is_paused = True
 
-        start_debug_session({"repo": repo_title, "build_id": build_id})
+        ensure_debug_session_started(build_id, repo_title)
+
+        # start_debug_session({"repo": repo_title, "build_id": build_id})
 
         socketio.emit('allow-breakpoint-edit', {"stage": stage.upper(), "when": when.upper()})
         log("[DEBUG] 🔓 User can now edit future breakpoints during pause!")
