@@ -9,6 +9,7 @@ import re
 import threading
 import pty
 from threading import Lock
+import uuid
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -62,6 +63,9 @@ def api_events():
         ci_config = load_ci_config(local_repo_path)
         configure_breakpoints_from_ci(ci_config)
 
+        build_id = generate_build_id(repo_title)
+        log(f"[DEBUG] 🔧 Build session started with ID: {build_id}")
+
         if event_type == "pull_request":
             pr = event["pull_request"]
             pr_branch = pr.get("head", {}).get("ref")
@@ -69,7 +73,7 @@ def api_events():
             log(f"Received PR#{pr_number} for branch {pr_branch} in {repo_title}.")
 
             # First we clone the repository if it does not already exist, if so then pull changes
-            clone_or_pull(repo_url, local_repo_path, repo_title)
+            clone_or_pull(repo_url, local_repo_path, repo_title, build_id)
 
             # Then checkout the PR branch
             checkout_branch(local_repo_path, pr_branch)
@@ -88,10 +92,10 @@ def api_events():
 
             # Trigger the buiild and testing of the project
             if ci_config.get("build", True):
-                build_project(local_repo_path, repo_title)
+                build_project(local_repo_path, repo_title, build_id)
 
             if ci_config.get("test", True):
-                run_tests(local_repo_path, repo_title)
+                run_tests(local_repo_path, repo_title, build_id)
 
             # If users add their own custom commands
             for cmd in ci_config.get("run_commands", []):
@@ -106,7 +110,7 @@ def api_events():
             log(f"Received push to {push_branch} in {repo_title}.")
 
             # First we clone the repository if it does not already exist, if so then pull changes
-            clone_or_pull(repo_url, local_repo_path, repo_title)
+            clone_or_pull(repo_url, local_repo_path, repo_title, build_id)
 
             # Then checkout the PR branch
             checkout_branch(local_repo_path, push_branch)
@@ -125,10 +129,10 @@ def api_events():
 
             # Trigger the buiild and testing of the project
             if ci_config.get("build", True):
-                build_project(local_repo_path, repo_title)
+                build_project(local_repo_path, repo_title, build_id)
 
             if ci_config.get("test", True):
-                run_tests(local_repo_path, repo_title)
+                run_tests(local_repo_path, repo_title, build_id)
 
             # If users add their own custom commands
             for cmd in ci_config.get("run_commands", []):
@@ -154,9 +158,11 @@ def handle_connect():
 @socketio.on('start-debug')
 def start_debug_session(data):
     repo = data.get("repo")
+    build_id = data.get("build_id")
 
-    if repo in bash_sessions and bash_sessions[repo]["process"].poll() is None:
-        log(f"[DEBUG] 🔁 Debug session already active for {repo}")
+    # New check
+    if build_id in bash_sessions and bash_sessions[build_id]["process"].poll() is None:
+        log(f"[DEBUG] 🔁 Debug session already active for {build_id}")
         return
     
     log(f"[DEBUG] 🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}")
@@ -175,26 +181,26 @@ def start_debug_session(data):
     )
 
     # to track the current working directory for each session
-    bash_sessions[repo] = {
+    bash_sessions[build_id] = {
         "process": process,
         "master_fd": master_fd,
         "cwd": "~",
         "lock": Lock()  # this should fix the race conditions issue
     }
-    socketio.emit("debug-session-started", {"repo_title": repo})
+    socketio.emit("debug-session-started", {"build_id": build_id})
 
     def listen_to_bash():
         ascii_shown = False
         while True:
             try:
-                with bash_sessions[repo]["lock"]:
+                with bash_sessions[build_id]["lock"]:
                     output = os.read(master_fd, 1024).decode()
 
                  # Custom prompt - should be like this: " repo-name@13.40.55.105 ~$ "
                 if output:
                     user = repo.split("/")[-1]
                     ip = "13.40.55.105"
-                    cwd = bash_sessions[repo]["cwd"]
+                    cwd = bash_sessions[build_id]["cwd"]
                     prompt = f"\n{user}@{ip} {cwd} ~$ "
                     
                     if not ascii_shown:
@@ -209,15 +215,15 @@ def start_debug_session(data):
 
 @socketio.on("stop-debug")
 def stop_debug(data):
-    repo = data.get("repo")
-    session = bash_sessions.get(repo)
+    build_id = data.get("build_id")
+    session = bash_sessions.get(build_id)
     if session:
         try:
-            log(f"[DEBUG] 🛑 Terminating debug session for {repo}")
+            log(f"[DEBUG] 🛑 Terminating debug session for {build_id}")
             session["process"].terminate()
         except Exception as e:
             log(f"[DEBUG] ⚠️ Warning! Could not terminate session: {e}")
-        bash_sessions.pop(repo, None)
+        bash_sessions.pop(build_id, None)
 
 @socketio.on('update-breakpoints')
 def handle_update_breakpoints(data):
@@ -249,12 +255,13 @@ def handle_update_breakpoints(data):
 def handle_console_command(data):
     char = data.get('command')
     repo_title = data.get('repoTitle')
+    build_id = data.get('build_id') 
 
-    if not char or not repo_title:
+    if not char or not build_id:
         emit('console-output', {'output': '❌ ERROR! Missing command or repoTitle'})
         return
 
-    session = bash_sessions.get(repo_title)
+    session = bash_sessions.get(build_id)
     if not session:
         emit('console-output', {'output': '❌ ERROR! Debug session not active.'})
         return
@@ -294,12 +301,9 @@ def handle_resume():
 @socketio.on('disconnect')
 def handle_disconnect():
     log("🛜 WebSocket client disconnected ❌")
-    # Stop any active bash sessions
-    for repo, process in bash_sessions.items():
+    for build_id, session in bash_sessions.items():
         try:
-            process.stdin.write("exit\n")
-            process.stdin.flush()
-            process.terminate()
+            session["process"].terminate()
         except Exception:
             pass
     bash_sessions.clear()
@@ -321,12 +325,12 @@ def log(message, tag=None):
     socketio.emit('log', {'log': formatted_msg})
 
 
-def clone_or_pull(repo_url, local_repo_path, repo_title):
+def clone_or_pull(repo_url, local_repo_path, repo_title, build_id):
     """ Clones a GitHub repository to a local directory or
         Pulls latest changes from the repository """
     
     socketio.emit('active-stage-update', {'stage': 'setup'})
-    pause_execution('setup', 'before', repo_title)   # Can optionally pause a pileline before executing command
+    pause_execution('setup', 'before', build_id, repo_title)   # Can optionally pause a pileline before executing command
 
     if not os.path.exists(local_repo_path):
         log(f"🔄 Cloning {repo_url}")
@@ -337,7 +341,7 @@ def clone_or_pull(repo_url, local_repo_path, repo_title):
         cmd = f"git -C {local_repo_path} pull"
         run_command_with_stream_output(cmd, tag="pull")
     
-    pause_execution('setup', 'after', repo_title)
+    pause_execution('setup', 'after', build_id, repo_title)
 
 
 
@@ -426,11 +430,11 @@ def format_project(local_repo_path):
     run_command_with_stream_output(cmd, tag="format")
 
 
-def build_project(local_repo_path, repo_title):
+def build_project(local_repo_path, repo_title, build_id):
     """ Builds the project inside a Docker container """
 
     socketio.emit('active-stage-update', {'stage': 'build'})
-    pause_execution('build', 'before', repo_title)   # Can choose to pause pipeline if we want - according to user
+    pause_execution('build', 'before', build_id, repo_title)   # Can choose to pause pipeline if we want - according to user
 
     log(f"🏗️ Building project in {local_repo_path}", tag="build")
 
@@ -457,14 +461,14 @@ def build_project(local_repo_path, repo_title):
 
     log(f"🚀 Container {container_name} running for debugging!", tag="build")
 
-    pause_execution('build', 'after', repo_title)
+    pause_execution('build', 'after', build_id, repo_title)
 
 
-def run_tests(local_repo_path, repo_title):
+def run_tests(local_repo_path, repo_title, build_id):
     """ Runs the test scripts for the user project also stream output """
 
     socketio.emit('active-stage-update', {'stage': 'test'})
-    pause_execution('test', 'before', repo_title) 
+    pause_execution('test', 'before', build_id, repo_title) 
 
     log(f"🧪 Running tests in {local_repo_path}", tag="test")
 
@@ -518,7 +522,7 @@ def run_tests(local_repo_path, repo_title):
 
     log("✅ All tests passed!", tag="test")
 
-    pause_execution('test', 'after', repo_title) 
+    pause_execution('test', 'after', build_id, repo_title) 
 
 def load_ci_config(local_repo_path):
     """ This is for the  configuration page where users can update their ci pipline steps """
@@ -609,17 +613,17 @@ def run_command_with_stream_output(cmd, cwd=None, tag=None):
         raise Exception(error_message)
     
 
-def pause_execution(stage, when, repo_title):
+def pause_execution(stage, when, build_id, repo_title):
     """ helper function that pauses an execution """
     global is_paused
-    ensure_debug_session_started(repo_title)
+    ensure_debug_session_started(build_id, repo_title)
 
     # Check if the current stage needs to be paused and also when it needs to be paused
     if breakpoints.get(stage, {}).get(when, False):
         log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!")
         is_paused = True
 
-        start_debug_session({"repo": repo_title})
+        start_debug_session({"repo": repo_title, "build_id": build_id})
 
         socketio.emit('allow-breakpoint-edit', {"stage": stage.upper(), "when": when.upper()})
         log("[DEBUG] 🔓 User can now edit future breakpoints during pause!")
@@ -628,10 +632,17 @@ def pause_execution(stage, when, repo_title):
         while is_paused:
             time.sleep(0.5)  # check every half second
 
-def ensure_debug_session_started(repo):
-    session = bash_sessions.get(repo)
+def ensure_debug_session_started(build_id, repo):
+    session = bash_sessions.get(build_id)
     if session is None or session["process"].poll() is not None:
-        start_debug_session({"repo": repo})
+        start_debug_session({"repo": repo, "build_id": build_id})
+
+def generate_build_id(repo_title: str) -> str:
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    unique_id = uuid.uuid4().hex[:8]
+    safe_repo = repo_title.replace("/", "_")
+    return f"{safe_repo}-{timestamp}-{unique_id}"
+
 # ------------------------------------------------------------
 
 if __name__ == "__main__":
