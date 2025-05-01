@@ -10,6 +10,7 @@ import threading
 import pty
 from threading import Lock
 import uuid
+import github_checks_helper as ghChecks
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -72,6 +73,15 @@ def api_events():
             pr_number = pr.get("number")
             log(f"Received PR#{pr_number} for branch {pr_branch} in {repo_title}.")
 
+            try:
+                commit_sha = pr.get("head", {}).get("sha")
+                check_name = "CI Pipeline"
+                check = ghChecks.create_check(repo_title, commit_sha, check_name, status="in_progress")
+                check_run_id = check["id"]
+            except Exception as e:
+                log(f"❌ Failed to create GitHub Check Run: {e}")
+                check_run_id = None
+
             # First we clone the repository if it does not already exist, if so then pull changes
             clone_or_pull(repo_url, local_repo_path, repo_title, build_id)
 
@@ -102,6 +112,35 @@ def api_events():
                 if isinstance(cmd, str):
                     log(f"🏃 Running custom command: {cmd}")
                     subprocess.run(cmd, shell=True, check=True, cwd=local_repo_path)
+            if check_run_id:
+                try:
+                    ghChecks.update_check(
+                        repo_title,
+                        check_run_id,
+                        status="completed",
+                        conclusion="success",
+                        output={
+                            "title": "Build and Tests Passed 🎉",
+                            "summary": f"All stages of the CI pipeline completed successfully for `{repo_title}`."
+                        }
+                    )
+                    log(f"[LOG] All stages of the CI pipeline completed successfully for `{repo_title}`.")
+                except Exception as e:
+                    log(f"[ERROR] ❌ Pipeline failed: {e}")
+                    if 'check_run_id' in locals() and check_run_id:
+                        try:
+                            ghChecks.update_check(
+                                repo_title,
+                                check_run_id,
+                                status="completed",
+                                conclusion="failure",
+                                output={
+                                    "title": "Build Failed ❌",
+                                    "summary": str(e)
+                                }
+                            )
+                        except Exception as err:
+                            log(f"⚠️ Failed to update failed check run: {err}")
 
             return json.dumps({"status": "PR processed"}), 200
 
