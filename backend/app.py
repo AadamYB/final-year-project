@@ -486,8 +486,8 @@ def build_project(local_repo_path, repo_title, build_id):
 
     # Create docker-(image and/or container) name based on repo
     repo_title = os.path.basename(local_repo_path)
-    image_name = f"{repo_title.lower()}-image"
-    container_name = f"{repo_title.lower()}-container"
+    image_name = f"{build_id.lower()}-image"
+    container_name = f"{build_id.lower()}-container"
 
     # Build docker image
     run_command_with_stream_output(f"docker build -t {image_name} {local_repo_path}", tag="build")
