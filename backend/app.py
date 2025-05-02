@@ -42,11 +42,20 @@ def api_root():
 def api_events():
     try:
         event_type = request.headers.get("X-GitHub-Event", "unknown")
-        log(f"📥 Event type received: {event_type}")
         event = request.json
 
         if not event:
             return json.dumps({"message": "No event data received"}), 400
+        
+        # We only want push and pull request events to get processed - otherwise ignore
+        if event_type not in {"pull_request", "push"}:
+            return json.dumps({"message": f"Ignored event type: {event_type}"}), 200
+        
+        # is the PR closed? if so skip
+        if event_type == "pull_request":
+            action = event.get("action")
+            if action != "opened" and action != "synchronize":
+                return json.dumps({"message": f"Ignored PR action: {action}"}), 200
 
         repo = event.get("repository", {})
         repo_title = repo.get("full_name")
@@ -62,7 +71,7 @@ def api_events():
         configure_breakpoints_from_ci(ci_config)
 
         build_id = generate_build_id(repo_title)
-        log(f"[DEBUG] 🔧 Build session started with ID: {build_id}")
+        log(f"🔧 Build session started with ID: {build_id}", tag="debug")
 
         if event_type == "pull_request":
             pr = event["pull_request"]
@@ -193,13 +202,13 @@ def start_debug_session(data):
 
     # New check
     if build_id in bash_sessions and bash_sessions[build_id]["process"].poll() is None:
-        log(f"[DEBUG] 🔁 Debug session already active for {build_id}")
+        log(f"🔁 Debug session already active for {build_id}", tag="debug")
         return
     
-    log(f"[DEBUG] 🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}")
+    log(f"🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}", tag="debug")
 
     # Create interactive bash
-    check_repo_title = re.sub(r'[^a-zA-Z0-9_\-]', '', repo)
+    build_id = re.sub(r'[^a-zA-Z0-9_\-]', '', repo)
     container_name = f"{build_id.lower()}-container"
 
     master_fd, slave_fd = pty.openpty()
@@ -250,10 +259,10 @@ def stop_debug(data):
     session = bash_sessions.get(build_id)
     if session:
         try:
-            log(f"[DEBUG] 🛑 Terminating debug session for {build_id}")
+            log(f"🛑 Terminating debug session for {build_id}", tag="debug")
             session["process"].terminate()
         except Exception as e:
-            log(f"[DEBUG] ⚠️ Warning! Could not terminate session: {e}")
+            log(f"⚠️ Warning! Could not terminate session: {e}", tag="debug")
         bash_sessions.pop(build_id, None)
 
 @socketio.on('update-breakpoints')
@@ -282,7 +291,7 @@ def handle_update_breakpoints(data):
 
     # Save updated breakpoints
     breakpoints = data
-    log(f"[DEBUG] ✅ Breakpoints updated to: {breakpoints}")
+    log(f"✅ Breakpoints updated to: {breakpoints}", tag="debug")
     socketio.emit("breakpoints-updated", {"breakpoints": breakpoints})
 
 @socketio.on('console-command')
@@ -324,13 +333,13 @@ def handle_console_command(data):
 def handle_pause():
     global is_paused
     is_paused = True
-    log("[DEBUG] ⏸️ Pause signal received from frontend! Pausing pipeline...")
+    log("⏸️ Pause signal received from frontend! Pausing pipeline...", tag="debug")
 
 @socketio.on('resume')
 def handle_resume():
     global is_paused
     is_paused = False
-    log(f"[DEBUG] 🟢 Resume signal received! Continuing pipeline...")
+    log(f"🟢 Resume signal received! Continuing pipeline...", tag="debug")
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -351,7 +360,7 @@ def log(message, tag=None):
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
     if tag:
-        formatted_msg = f"[{tag.upper()}] [{timestamp}] {message}"
+        formatted_msg = f"[{timestamp}] [{tag.upper()}] {message}"
     else:
         formatted_msg = f"[{timestamp}] {message}"
 
@@ -608,7 +617,7 @@ def configure_breakpoints_from_ci(ci_config):
         "build": {"before": ci_config.get("pause_before_build", False), "after": ci_config.get("pause_after_build", False)},
         "test": {"before": ci_config.get("pause_before_test", False), "after": ci_config.get("pause_after_test", False)},
     }
-    log(f"[DEBUG] Breakpoints configured: {breakpoints}")
+    log(f"Breakpoints configured: {breakpoints}", tag="debug")
     socketio.emit("pause-configured", {"breakpoints": breakpoints})
 
 
@@ -653,7 +662,7 @@ def pause_execution(stage, when, build_id, repo_title):
 
     # Check if the current stage needs to be paused and also when it needs to be paused
     if breakpoints.get(stage, {}).get(when, False):
-        log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!")
+        log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!", tag="debug")
         is_paused = True
 
         ensure_debug_session_started(build_id, repo_title)
@@ -661,7 +670,7 @@ def pause_execution(stage, when, build_id, repo_title):
         # start_debug_session({"repo": repo_title, "build_id": build_id})
 
         socketio.emit('allow-breakpoint-edit', {"stage": stage.upper(), "when": when.upper()})
-        log("[DEBUG] 🔓 User can now edit future breakpoints during pause!")
+        log("🔓 User can now edit future breakpoints during pause!", tag="debug")
 
         # Loop until resume is received
         while is_paused:
