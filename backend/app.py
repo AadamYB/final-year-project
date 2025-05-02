@@ -84,7 +84,7 @@ def api_events():
 
             try:
                 # First we clone the repository if it does not already exist, if so then pull changes
-                clone_or_pull(repo_url, local_repo_path, repo_title, build_id)
+                clone_or_pull(repo_url, local_repo_path, repo_title, build_id, pr_branch)
 
                 # Then checkout the PR branch
                 checkout_branch(local_repo_path, pr_branch)
@@ -135,7 +135,7 @@ def api_events():
 
             try:
                 # Clone or pull latest changes
-                clone_or_pull(repo_url, local_repo_path, repo_title, build_id)
+                clone_or_pull(repo_url, local_repo_path, repo_title, build_id, push_branch)
 
                 # Checkout the push branch
                 checkout_branch(local_repo_path, push_branch)
@@ -368,7 +368,7 @@ def log(message, tag=None):
     socketio.emit('log', {'log': formatted_msg})
 
 
-def clone_or_pull(repo_url, local_repo_path, repo_title, build_id):
+def clone_or_pull(repo_url, local_repo_path, repo_title, build_id, branch):
     """ Clones a GitHub repository to a local directory or
         Pulls latest changes from the repository """
     
@@ -381,7 +381,7 @@ def clone_or_pull(repo_url, local_repo_path, repo_title, build_id):
         run_command_with_stream_output(cmd, tag="clone")
     else:
         log(f"🔁 Pulling latest changes in {local_repo_path}")
-        cmd = f"git -C {local_repo_path} fetch origin"
+        cmd = f"git -C {local_repo_path} pull origin {branch}"
         run_command_with_stream_output(cmd, tag="pull")
     
     pause_execution('setup', 'after', build_id, repo_title)
