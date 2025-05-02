@@ -8,6 +8,7 @@ const socket = io("http://13.40.55.105:5000");
 
 const DebugConsole = ({ repoTitle }) => {
   const terminalRef = useRef();
+  const buildId = repoTitle ? `${repoTitle.replace("/", "_")}-frontend` : "unknown-build";
 
   useEffect(() => {
     if (!repoTitle) return;
@@ -32,6 +33,7 @@ const DebugConsole = ({ repoTitle }) => {
       socket.emit("console-command", {
         command: data,
         repoTitle,
+        build_id: buildId,
       });
     });
   
@@ -41,14 +43,14 @@ const DebugConsole = ({ repoTitle }) => {
     });
   
     // Only able to debug after repoTitle exists
-    socket.emit("start-debug", { repo: repoTitle });
+    socket.emit("start-debug", { repo: repoTitle, build_id: buildId });
   
     return () => {
-      socket.emit("stop-debug", { repo: repoTitle });
+      socket.emit("stop-debug", { build_id: buildId });
       socket.off("console-output");
       term.dispose();
     };
-  }, [repoTitle]);
+  }, [repoTitle, buildId]);
 
   return (
     <div className={styles.container}>
