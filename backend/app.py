@@ -48,7 +48,8 @@ def api_events():
             return json.dumps({"message": "No event data received"}), 400
         
         # We only want push and pull request events to get processed - otherwise ignore
-        if event_type not in {"pull_request", "push"}:
+        # if event_type not in {"pull_request", "push"}:
+        if event_type != "pull_request":
             return json.dumps({"message": f"Ignored event type: {event_type}"}), 200
         
         # is the PR closed? if so skip
@@ -720,12 +721,12 @@ def update_github_check(repo_title, check_run_id, conclusion="success", summary=
 # ------------------------------------------------------------
 
 if __name__ == "__main__":
-    broken_repo = "/tmp/repos/AadamYB_noughts-N-crosses"
-    if os.path.exists(broken_repo):
-        import shutil
-        print(f"🧹 Deleting stale repo at {broken_repo}...")
-        shutil.rmtree(broken_repo)
-        print("✅ Repo removed. You can now comment out this block.")
+    # broken_repo = "/tmp/repos/AadamYB_noughts-N-crosses"
+    # if os.path.exists(broken_repo):
+    #     import shutil
+    #     print(f"🧹 Deleting stale repo at {broken_repo}...")
+    #     shutil.rmtree(broken_repo)
+    #     print("✅ Repo removed. You can now comment out this block.")
 
 
     os.makedirs(REPO_DIRECTORY, exist_ok=True)
