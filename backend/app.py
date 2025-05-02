@@ -208,7 +208,7 @@ def start_debug_session(data):
 
     # Create interactive bash
     check_repo_title = re.sub(r'[^a-zA-Z0-9_\-]', '', repo)
-    container_name = f"{check_repo_title.lower()}-container"
+    container_name = f"{build_id.lower()}-container"
 
     master_fd, slave_fd = pty.openpty()
     process = subprocess.Popen(
