@@ -381,7 +381,7 @@ def clone_or_pull(repo_url, local_repo_path, repo_title, build_id):
         run_command_with_stream_output(cmd, tag="clone")
     else:
         log(f"🔁 Pulling latest changes in {local_repo_path}")
-        cmd = f"git -C {local_repo_path} pull"
+        cmd = f"git -C {local_repo_path} fetch origin"
         run_command_with_stream_output(cmd, tag="pull")
     
     pause_execution('setup', 'after', build_id, repo_title)
