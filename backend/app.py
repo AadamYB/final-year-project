@@ -26,10 +26,7 @@ bash_sessions = {}
 
 DEBUG_ASCII_ART = """
 -------------------------------------
-▖ ▘       ▌  ▌       ▘    
-▌ ▌▌▌█▌  ▛▌█▌▛▌▌▌▛▌▛▌▌▛▌▛▌
-▙▖▌▚▘▙▖  ▙▌▙▖▙▌▙▌▙▌▙▌▌▌▌▙▌
-                 ▄▌▄▌   ▄▌
+Live Debugging Session
 -------------------------------------
 """
 
@@ -73,119 +70,114 @@ def api_events():
             pr_number = pr.get("number")
             log(f"Received PR#{pr_number} for branch {pr_branch} in {repo_title}.")
 
+            commit_sha = pr.get("head", {}).get("sha")
+            check_run_id = send_github_check(repo_title, commit_sha)
+
             try:
-                commit_sha = pr.get("head", {}).get("sha")
-                check_name = "CI Pipeline"
-                check = ghChecks.create_check(repo_title, commit_sha, check_name, status="in_progress")
-                check_run_id = check["id"]
+                # First we clone the repository if it does not already exist, if so then pull changes
+                clone_or_pull(repo_url, local_repo_path, repo_title, build_id)
+
+                # Then checkout the PR branch
+                checkout_branch(local_repo_path, pr_branch)
+
+                # Load .ci.yml if it exists
+                ci_config = load_ci_config(local_repo_path)
+
+                # Conditionally execute steps
+
+                # We want to make sure that the code passes the formatting before building the project
+                if ci_config.get("lint", True):
+                    lint_project(local_repo_path)
+
+                if ci_config.get("format", True):
+                    format_project(local_repo_path)
+
+                # Trigger the buiild and testing of the project
+                if ci_config.get("build", True):
+                    build_project(local_repo_path, repo_title, build_id)
+
+                if ci_config.get("test", True):
+                    run_tests(local_repo_path, repo_title, build_id)
+
+                # If users add their own custom commands
+                for cmd in ci_config.get("run_commands", []):
+                    if isinstance(cmd, str):
+                        log(f"🏃 Running custom command: {cmd}")
+                        run_command_with_stream_output(cmd, cwd=local_repo_path, tag="custom")
+
+                # All passed
+                if check_run_id:
+                    update_github_check(repo_title, check_run_id, "success", "All stages passed ✅")
+
             except Exception as e:
-                log(f"❌ Failed to create GitHub Check Run: {e}")
-                check_run_id = None
-
-            # First we clone the repository if it does not already exist, if so then pull changes
-            clone_or_pull(repo_url, local_repo_path, repo_title, build_id)
-
-            # Then checkout the PR branch
-            checkout_branch(local_repo_path, pr_branch)
-
-            # Load .ci.yml if it exists
-            ci_config = load_ci_config(local_repo_path)
-
-            # Conditionally execute steps
-
-            # We want to make sure that the code passes the formatting before building the project
-            if ci_config.get("lint", True):
-                lint_project(local_repo_path)
-
-            if ci_config.get("format", True):
-                format_project(local_repo_path)
-
-            # Trigger the buiild and testing of the project
-            if ci_config.get("build", True):
-                build_project(local_repo_path, repo_title, build_id)
-
-            if ci_config.get("test", True):
-                run_tests(local_repo_path, repo_title, build_id)
-
-            # If users add their own custom commands
-            for cmd in ci_config.get("run_commands", []):
-                if isinstance(cmd, str):
-                    log(f"🏃 Running custom command: {cmd}")
-                    subprocess.run(cmd, shell=True, check=True, cwd=local_repo_path)
-            if check_run_id:
-                try:
-                    ghChecks.update_check(
-                        repo_title,
-                        check_run_id,
-                        status="completed",
-                        conclusion="success",
-                        output={
-                            "title": "Build and Tests Passed 🎉",
-                            "summary": f"All stages of the CI pipeline completed successfully for `{repo_title}`."
-                        }
-                    )
-                    log(f"[LOG] All stages of the CI pipeline completed successfully for `{repo_title}`.")
-                except Exception as e:
-                    log(f"[ERROR] ❌ Pipeline failed: {e}")
-                    if 'check_run_id' in locals() and check_run_id:
-                        try:
-                            ghChecks.update_check(
-                                repo_title,
-                                check_run_id,
-                                status="completed",
-                                conclusion="failure",
-                                output={
-                                    "title": "Build Failed ❌",
-                                    "summary": str(e)
-                                }
-                            )
-                        except Exception as err:
-                            log(f"⚠️ Failed to update failed check run: {err}")
+                log(f"❌ ERROR! Pipeline failed mid-execution: {e}")
+                if check_run_id:
+                    update_github_check(repo_title, check_run_id, "failure", str(e))
+                return json.dumps({"status": "Pipeline failed"}), 500
 
             return json.dumps({"status": "PR processed"}), 200
 
         elif event_type == "push":
             push_branch = event.get("ref", "").split("/")[-1]
-            log(f"Received push to {push_branch} in {repo_title}.")
+            commit_sha = event.get("after")
+            log(f"📦 Received push to `{push_branch}` in {repo_title}.")
 
-            # First we clone the repository if it does not already exist, if so then pull changes
-            clone_or_pull(repo_url, local_repo_path, repo_title, build_id)
+            check_run_id = send_github_check(repo_title, commit_sha)
 
-            # Then checkout the PR branch
-            checkout_branch(local_repo_path, push_branch)
+            try:
+                # Clone or pull latest changes
+                clone_or_pull(repo_url, local_repo_path, repo_title, build_id)
 
-            # Load .ci.yml if it exists
-            ci_config = load_ci_config(local_repo_path)
+                # Checkout the push branch
+                checkout_branch(local_repo_path, push_branch)
 
-            # Conditionally execute steps
+                # Reload CI config after checkout
+                ci_config = load_ci_config(local_repo_path)
 
-            # We want to make sure that the code passes the formatting before building the project
-            if ci_config.get("lint", True):
-                lint_project(local_repo_path)
+                # Run CI stages conditionally - based on the breakpoint-dictionary/.ci.yml file
+                if ci_config.get("lint", True):
+                    lint_project(local_repo_path)
 
-            if ci_config.get("format", True):
-                format_project(local_repo_path)
+                if ci_config.get("format", True):
+                    format_project(local_repo_path)
 
-            # Trigger the buiild and testing of the project
-            if ci_config.get("build", True):
-                build_project(local_repo_path, repo_title, build_id)
+                if ci_config.get("build", True):
+                    build_project(local_repo_path, repo_title, build_id)
 
-            if ci_config.get("test", True):
-                run_tests(local_repo_path, repo_title, build_id)
+                if ci_config.get("test", True):
+                    run_tests(local_repo_path, repo_title, build_id)
 
-            # If users add their own custom commands
-            for cmd in ci_config.get("run_commands", []):
-                if isinstance(cmd, str):
-                    log(f"🏃 Running custom command: {cmd}")
-                    subprocess.run(cmd, shell=True, check=True, cwd=local_repo_path)
+                for cmd in ci_config.get("run_commands", []):
+                    if isinstance(cmd, str):
+                        log(f"🏃 Running custom command: {cmd}")
+                        run_command_with_stream_output(cmd, cwd=local_repo_path, tag="custom")
 
+                if check_run_id:
+                    update_github_check(
+                        repo_title,
+                        check_run_id,
+                        "success",
+                        f"All stages passed ✅\nBuild ID: `{build_id}`"
+                    )
+
+            except Exception as e:
+                log(f"❌ ERROR! Push pipeline failed: {e}")
+                if check_run_id:
+                    update_github_check(
+                        repo_title,
+                        check_run_id,
+                        "failure",
+                        f"Push pipeline failed ❌\nBuild ID: `{build_id}`\n\nError: {str(e)}"
+                    )
+                return json.dumps({"status": "Push failed"}), 500
+            
             return json.dumps({"status": "Push processed"}), 200
 
         log("⚠️ Ignoring unsupported event type.")
         return json.dumps({"message": f"Ignored event type: {event_type}"}), 200
 
     except Exception as e:
-        log(f"❌ Pipeline failed: {e}")
+        log(f"❌ ERROR! Pipeline failed: {e}")
         return json.dumps({"error": str(e)}), 500
 
 
@@ -685,6 +677,36 @@ def generate_build_id(repo_title: str) -> str:
     unique_id = uuid.uuid4().hex[:8]
     safe_repo = repo_title.replace("/", "_")
     return f"{safe_repo}-{timestamp}-{unique_id}"
+
+def send_github_check(repo_title, commit_sha, check_name="CI Pipeline"):
+    """ Creates a new GitHub check run and returns the check_run_id """
+    try:
+        check = ghChecks.create_check(repo_title, commit_sha, check_name, status="in_progress")
+        return check["id"]
+    except Exception as e:
+        log(f"❌ Failed to create GitHub Check Run: {e}")
+        return None
+
+
+def update_github_check(repo_title, check_run_id, conclusion="success", summary=""):
+    """ Updates an existing GitHub check run with final status """
+    if not check_run_id:
+        return
+
+    try:
+        ghChecks.update_check(
+            repo_title,
+            check_run_id,
+            status="completed",
+            conclusion=conclusion,
+            output={
+                "title": f"Build {'Passed ✅' if conclusion == 'success' else 'Failed ❌'}",
+                "summary": summary
+            }
+        )
+        log(f"📬 Check run updated: {conclusion.upper()}")
+    except Exception as e:
+        log(f"⚠️ Failed to update check run: {e}")
 
 # ------------------------------------------------------------
 
