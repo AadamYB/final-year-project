@@ -127,64 +127,62 @@ def api_events():
 
             return json.dumps({"status": "PR processed"}), 200
 
-        elif event_type == "push":
-            push_branch = event.get("ref", "").split("/")[-1]
-            commit_sha = event.get("after")
-            log(f"📦 Received push to `{push_branch}` in {repo_title}.")
+        # We remove this entirely?
+        # elif event_type == "push":
+        #     push_branch = event.get("ref", "").split("/")[-1]
+        #     commit_sha = event.get("after")
+        #     log(f"📦 Received push to `{push_branch}` in {repo_title}.")
 
-            check_run_id = send_github_check(repo_title, commit_sha)
+        #     check_run_id = send_github_check(repo_title, commit_sha)
 
-            try:
-                # Clone or pull latest changes
-                clone_or_pull(repo_url, local_repo_path, repo_title, build_id, push_branch)
+        #     try:
+        #         # Clone or pull latest changes
+        #         clone_or_pull(repo_url, local_repo_path, repo_title, build_id, push_branch)
 
-                # Checkout the push branch
-                checkout_branch(local_repo_path, push_branch)
+        #         # Checkout the push branch
+        #         checkout_branch(local_repo_path, push_branch)
 
-                # Reload CI config after checkout
-                ci_config = load_ci_config(local_repo_path)
+        #         # Reload CI config after checkout
+        #         ci_config = load_ci_config(local_repo_path)
 
-                # Run CI stages conditionally - based on the breakpoint-dictionary/.ci.yml file
-                if ci_config.get("lint", True):
-                    lint_project(local_repo_path)
+        #         # Run CI stages conditionally - based on the breakpoint-dictionary/.ci.yml file
+        #         if ci_config.get("lint", True):
+        #             lint_project(local_repo_path)
 
-                if ci_config.get("format", True):
-                    format_project(local_repo_path)
+        #         if ci_config.get("format", True):
+        #             format_project(local_repo_path)
 
-                if ci_config.get("build", True):
-                    build_project(local_repo_path, repo_title, build_id)
+        #         if ci_config.get("build", True):
+        #             build_project(local_repo_path, repo_title, build_id)
 
-                if ci_config.get("test", True):
-                    run_tests(local_repo_path, repo_title, build_id)
+        #         if ci_config.get("test", True):
+        #             run_tests(local_repo_path, repo_title, build_id)
 
-                for cmd in ci_config.get("run_commands", []):
-                    if isinstance(cmd, str):
-                        log(f"🏃 Running custom command: {cmd}")
-                        run_command_with_stream_output(cmd, cwd=local_repo_path, tag="custom")
+        #         for cmd in ci_config.get("run_commands", []):
+        #             if isinstance(cmd, str):
+        #                 log(f"🏃 Running custom command: {cmd}")
+        #                 run_command_with_stream_output(cmd, cwd=local_repo_path, tag="custom")
 
-                if check_run_id:
-                    update_github_check(
-                        repo_title,
-                        check_run_id,
-                        "success",
-                        f"All stages passed ✅\nBuild ID: `{build_id}`"
-                    )
+        #         if check_run_id:
+        #             update_github_check(
+        #                 repo_title,
+        #                 check_run_id,
+        #                 "success",
+        #                 f"All stages passed ✅\nBuild ID: `{build_id}`"
+        #             )
 
-            except Exception as e:
-                log(f"❌ ERROR! Push pipeline failed: {e}")
-                if check_run_id:
-                    update_github_check(
-                        repo_title,
-                        check_run_id,
-                        "failure",
-                        f"Push pipeline failed ❌\nBuild ID: `{build_id}`\n\nError: {str(e)}"
-                    )
-                return json.dumps({"status": "Push failed"}), 500
+        #     except Exception as e:
+        #         log(f"❌ ERROR! Push pipeline failed: {e}")
+        #         if check_run_id:
+        #             update_github_check(
+        #                 repo_title,
+        #                 check_run_id,
+        #                 "failure",
+        #                 f"Push pipeline failed ❌\nBuild ID: `{build_id}`\n\nError: {str(e)}"
+        #             )
+        #         return json.dumps({"status": "Push failed"}), 500
             
-            return json.dumps({"status": "Push processed"}), 200
-
-        log("⚠️ Ignoring unsupported event type.")
-        return json.dumps({"message": f"Ignored event type: {event_type}"}), 200
+        #     return json.dumps({"status": "Push processed"}), 200
 
     except Exception as e:
         log(f"❌ ERROR! Pipeline failed: {e}")
