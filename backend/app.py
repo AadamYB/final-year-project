@@ -720,11 +720,13 @@ def update_github_check(repo_title, check_run_id, conclusion="success", summary=
 # ------------------------------------------------------------
 
 if __name__ == "__main__":
-    # broken_repo = "/tmp/repos/AadamYB_noughts-N-crosses"
-    # if os.path.exists(broken_repo):
-    #     import shutil
-    #     print(f"🧹 Deleting stale repo at {broken_repo}...")
-    #     shutil.rmtree(broken_repo)
+    broken_repo = "/tmp/repos/AadamYB_noughts-N-crosses"
+    if os.path.exists(broken_repo):
+        import shutil
+        print(f"🧹 Deleting stale repo at {broken_repo}...")
+        shutil.rmtree(broken_repo)
+        print("✅ Repo removed. You can now comment out this block.")
+
 
     os.makedirs(REPO_DIRECTORY, exist_ok=True)
     socketio.run(app, debug=False, host="0.0.0.0", port=5000)
