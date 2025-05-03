@@ -17,16 +17,12 @@ const initialBreakpointStates = {
   test: { before: false, after: false },
 };
 
-const buildData = [
-  { status: "Pending", prName: "Software 0.3 update tests", date: "21/03/25", time: "18:04" },
-  { status: "Failed", prName: "Software 1.4 update tests", date: "21/03/25", time: "13:34" },
-  { status: "Passed", prName: "Software 0.2 update tests", date: "21/03/25", time: "07:54" },
-];
 
 const DebugPage = () => {
   const { buildId } = useParams();
+  const [buildData, setBuildData] = useState([]);
   const [repoTitle, setRepoTitle] = useState("");
-  const [selectedBuild, setSelectedBuild] = useState(buildData[0]);
+  const [selectedBuild, setSelectedBuild] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
   const [resumeTarget, setResumeTarget] = useState(null);
   const [resumedPoint, setResumedPoint] = useState(null);
@@ -39,6 +35,44 @@ const DebugPage = () => {
   const [logs, setLogs] = useState([]);
 
   useEffect(() => {
+    const fetchExecutionData = async () => {
+      try {
+        const res = await fetch(`http://13.40.55.105:5000/executions/${buildId}`);
+        const data = await res.json();
+        if (data?.logs) {
+          const logLines = data.logs.split("\n");
+          setLogs(logLines);
+        }
+        if (data?.repo_title) {
+          setRepoTitle(data.repo_title);
+        }
+      } catch (err) {
+        console.error("❌ Failed to fetch logs:", err);
+      }
+    };
+
+    const fetchBuildList = async () => {
+      try {
+        const res = await fetch("http://13.40.55.105:5000/executions");
+        const data = await res.json();
+        setBuildData(data);
+    
+        // Optional: auto-select the first one if not already selected
+        if (!selectedBuild && data.length > 0) {
+          setSelectedBuild(data[0]);
+        }
+      } catch (err) {
+        console.error("❌ Failed to fetch build list:", err);
+      }
+    };
+  
+    if (buildId) {
+      fetchExecutionData();
+      localStorage.setItem("lastBuildId", buildId);
+    }
+
+    fetchBuildList();
+
     socket.on("log", (data) => {
       setLogs((prevLogs) => [...prevLogs, data.log]);
     });
@@ -85,12 +119,13 @@ const DebugPage = () => {
 
     return () => {
       socket.off("log");
+      socket.off("build-started");
       socket.off("allow-breakpoint-edit");
       socket.off("active-stage-update");
       socket.off("debug-session-started");
       socket.off("pause-configured");
     };
-  }, []);
+  }, [buildId, selectedBuild]);
 
   const toggleBreakpoint = (stage, type) => {
     if (!canEditBreakpoints) return;
@@ -140,45 +175,53 @@ const DebugPage = () => {
   return (
     <div className={styles.page}>
       <div className={styles.listContainer}>
-        {buildData.map((build, id) => (
+        {buildData.map((build) => (
           <BuildListCard
-            key={id}
+            key={build.id}
             status={build.status}
-            prName={build.prName}
+            prName={build.pr_name}
             date={build.date}
             time={build.time}
-            isActive={selectedBuild.prName === build.prName}
+            isActive={selectedBuild?.id === build.id}
             onClick={() => setSelectedBuild(build)}
           />
         ))}
       </div>
 
-      <div className={styles.mainContentContainer}>
-        <h1 className={styles.buildTitle}>
-          <img
-            src={getStatusIcon(selectedBuild.status)}
-            alt={selectedBuild.status}
-            className={styles.statusIcon}
+      {selectedBuild ? (
+        <div className={styles.mainContentContainer}>
+          <h1 className={styles.buildTitle}>
+          {selectedBuild.status && (
+            <img
+              src={getStatusIcon(selectedBuild.status)}
+              alt={selectedBuild.status}
+              className={styles.statusIcon}
+            />
+          )}
+            {selectedBuild.status} - {selectedBuild.pr_name}
+          </h1>
+
+          <hr />
+
+          <BreakpointTracker
+            activeStage={activeStage}
+            breakpoints={breakpoints}
+            onToggleBreakpoint={toggleBreakpoint}
+            socket={socket}
+            canEdit={canEditBreakpoints}
+            resumeTarget={resumeTarget}
+            resumedPoint={resumedPoint}
+            isPaused={isPaused}
           />
-          {selectedBuild.status} - {selectedBuild.prName}
-        </h1>
 
-        <hr />
-
-        <BreakpointTracker
-          activeStage={activeStage}
-          breakpoints={breakpoints}
-          onToggleBreakpoint={toggleBreakpoint}
-          socket={socket}
-          canEdit={canEditBreakpoints}
-          resumeTarget={resumeTarget}
-          resumedPoint={resumedPoint}
-          isPaused={isPaused}
-        />
-
-        <StreamLogs logs={logs} />
-        <DebugConsole repoTitle={repoTitle} />
-      </div>
+          <StreamLogs logs={logs} />
+          <DebugConsole repoTitle={repoTitle} isPaused={isPaused} />
+        </div>
+      ) : (
+        <div className={styles.mainContentContainer}>
+          <h1 className={styles.buildTitle}>🔍 Select a build from the left</h1>
+        </div>
+      )}
     </div>
   );
 };

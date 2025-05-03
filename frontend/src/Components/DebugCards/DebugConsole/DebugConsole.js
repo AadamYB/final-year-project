@@ -6,13 +6,19 @@ import styles from "./DebugConsole.module.css";
 
 const socket = io("http://13.40.55.105:5000");
 
-const DebugConsole = ({ repoTitle }) => {
+const DebugConsole = ({ repoTitle, isPaused }) => {
   const terminalRef = useRef();
   const buildId = repoTitle ? `${repoTitle.replace("/", "_")}-frontend` : "unknown-build";
+  const hasStartedRef = useRef(false);
 
   useEffect(() => {
-    if (!repoTitle) return;
-  
+    if (!repoTitle || !isPaused) return;
+
+    if (hasStartedRef.current && hasStartedRef.current === repoTitle) return;
+    hasStartedRef.current = repoTitle;
+
+    socket.emit("start-debug", { repo: repoTitle, build_id: buildId });
+
     const term = new Terminal({
       fontFamily: "monospace",
       fontSize: 14,
@@ -23,12 +29,15 @@ const DebugConsole = ({ repoTitle }) => {
       cursorBlink: true,
       scrollback: 500,
     });
-  
-    term.open(terminalRef.current);
-    term.focus();
-    term.write('\r\n');
-  
-    // Input handler
+
+    requestAnimationFrame(() => {
+      if (terminalRef.current?.offsetWidth > 0) {
+        term.open(terminalRef.current);
+        term.focus();
+        term.write('\r\n');
+      }
+    });
+
     term.onData(data => {
       socket.emit("console-command", {
         command: data,
@@ -36,21 +45,17 @@ const DebugConsole = ({ repoTitle }) => {
         build_id: buildId,
       });
     });
-  
-    // Output handler to show our cmd stdout in the terminal
+
     socket.on("console-output", (data) => {
       term.write(data.output);
     });
-  
-    // Only able to debug after repoTitle exists
-    socket.emit("start-debug", { repo: repoTitle, build_id: buildId });
-  
+
     return () => {
       socket.emit("stop-debug", { build_id: buildId });
       socket.off("console-output");
       term.dispose();
     };
-  }, [repoTitle, buildId]);
+  }, [repoTitle, buildId, isPaused]);
 
   return (
     <div className={styles.container}>
