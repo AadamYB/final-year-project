@@ -77,8 +77,6 @@ def api_events():
         
         build_id = generate_build_id(repo_title) # KEY AS THIS IS PASSED TO EVERYTHING
 
-        # ci_config = load_ci_config(local_repo_path, build_id) WHY CALLED TWICE?
-        # configure_breakpoints_from_ci(ci_config, build_id)
 
         log(f"🔧 Build session started with ID: {build_id}", tag="debug", build_id=build_id)
 
@@ -768,7 +766,7 @@ def update_github_check(repo_title, check_run_id, conclusion="success", summary=
                 "summary": full_summary
             }
         )
-        log(f"📬 Check run updated: {conclusion.upper()}", build_id=build_id)
+        log(f"📬 Check run updated: {conclusion.upper()}", tag="FINISHED", build_id=build_id)
     except Exception as e:
         log(f"⚠️ Failed to update check run: {e}", build_id=build_id)
 
