@@ -596,11 +596,8 @@ def run_tests(local_repo_path, repo_title, build_id):
                 build_id=build_id
             )
 
-        log("❌ Test discovery failed — raising root error with full context...", tag="test", build_id=build_id)
-        raise Exception(f"❌ ERROR! No tests discovered due to the following root error:\n\n{full_output}")
-
     if process.returncode != 0:
-        raise Exception(f"❌ Tests failed!\n{full_output}")
+        raise Exception(f"❌ Test stage failed failed!\n{full_output}")
 
     log("✅ All tests passed!", tag="test", build_id=build_id)
 
