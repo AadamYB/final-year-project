@@ -15,7 +15,7 @@ import github_checks_helper as ghChecks
 from models import database, Execution
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:3000"])
+CORS(app, origins=["*"], supports_credentials=True)
 app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://postgres@localhost:5432/postgres"
 database.init_app(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
