@@ -31,9 +31,9 @@ collected_logs = {}
 is_paused = False
 
 DEBUG_ASCII_ART = """
--------------------------------------
-Live Debugging Session
--------------------------------------
+-------------------------------------\n
+Live Debugging Session\n
+-------------------------------------\n
 """
 
 
@@ -59,7 +59,7 @@ def api_events():
         
         # is the PR closed? if so skip
         if event_type == "pull_request":
-            log(event) # debugging purposes
+            # log(event) # debugging purposes
             action = event.get("action")
             if action != "opened" and action != "synchronize":
                 return json.dumps({"message": f"Ignored PR action: {action}"}), 200
@@ -322,7 +322,7 @@ def handle_console_command(data):
     master_fd = session["master_fd"]
     process = session["process"]
 
-    # Track `cd` commands
+    # Track `cd` commands - well when we fix the debug console
     if char.startswith("cd "):
         new_dir = char.strip().split("cd ")[-1].strip()
         if new_dir == "..":
@@ -530,9 +530,10 @@ def run_tests(local_repo_path, repo_title, build_id):
 
     log(f"🧪 Running tests in {local_repo_path}", tag="test", build_id=build_id)
 
+    image_name = f"{build_id.lower()}-image"
     cmd = (
         f"docker run --rm -v {local_repo_path}:/app "
-        f"-w /app project-image pytest tests --tb=short"
+        f"-w /app {image_name} pytest tests --tb=short"
     )
 
     log(f"🚀 Running command: {cmd}", tag="test", build_id=build_id)
