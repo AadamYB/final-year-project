@@ -198,6 +198,20 @@ def get_execution(build_id):
         "logs": execution.logs or "",
     }
 
+@app.route("/executions", methods=["GET"])
+def get_all_executions():
+    executions = Execution.query.order_by(Execution.timestamp.desc()).all()
+    data = []
+    for e in executions:
+        data.append({
+            "id": e.id,
+            "status": e.status,
+            "pr_name": e.pr_name,
+            "date": e.timestamp.strftime("%d/%m/%y"),
+            "time": e.timestamp.strftime("%H:%M"),
+        })
+    return json.dumps(data)
+
 @socketio.on('connect')
 def handle_connect():
     log("🛜 WebSocket client connected ✅")
