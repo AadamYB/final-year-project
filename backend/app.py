@@ -678,18 +678,20 @@ def pause_execution(stage, when, build_id, repo_title):
     global is_paused
 
     # Check if the current stage needs to be paused and also when it needs to be paused
-    if breakpoints.get(stage, {}).get(when, False):
-        log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!", tag="debug", build_id=build_id)
-        is_paused = True
+    if not breakpoints.get(stage, {}).get(when, False):
+        return
+    
+    log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!", tag="debug", build_id=build_id)
+    is_paused = True
 
-        ensure_debug_session_started(build_id, repo_title)
+    ensure_debug_session_started(build_id, repo_title)
 
-        socketio.emit('allow-breakpoint-edit', {"stage": stage.upper(), "when": when.upper()})
-        log("🔓 User can now edit future breakpoints during pause!", tag="debug", build_id=build_id)
+    socketio.emit('allow-breakpoint-edit', {"stage": stage.upper(), "when": when.upper()})
+    log("🔓 User can now edit future breakpoints during pause!", tag="debug", build_id=build_id)
 
-        # Loop until resume is received
-        while is_paused:
-            time.sleep(0.5)  # check every half second
+    # Loop until resume is received
+    while is_paused:
+        time.sleep(0.5)  # check every half second
 
 def ensure_debug_session_started(build_id, repo):
     session = bash_sessions.get(build_id)
