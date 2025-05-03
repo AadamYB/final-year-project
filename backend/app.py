@@ -686,9 +686,8 @@ def run_command_with_stream_output(cmd, build_id, cwd=None, tag=None):
     process.wait()
 
     if process.returncode != 0:
-        error_message = f"⛔️ ERROR during [{tag}] stage. ❌\nExit Code: {process.returncode}\n\nOutput:\n" + "\n".join(output_lines)
-        log(error_message, tag=tag or "error", build_id=build_id)
-        raise Exception(error_message)
+        log(f"⛔️ ERROR during [{tag}] stage. ❌ Exit Code: {process.returncode}", tag="error", build_id=build_id)
+        raise Exception(f"Stage [{tag}] failed with exit code {process.returncode}")
     
 
 def pause_execution(stage, when, build_id, repo_title):
