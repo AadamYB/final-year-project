@@ -8,12 +8,14 @@ import time
 import re
 import threading
 import pty
+from flask_cors import CORS
 from threading import Lock
 import uuid
 import github_checks_helper as ghChecks
 from models import database, Execution
 
 app = Flask(__name__)
+CORS(app, origins=["http://localhost:3000"])
 app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://postgres@localhost:5432/postgres"
 database.init_app(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
