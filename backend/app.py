@@ -694,6 +694,9 @@ def pause_execution(stage, when, build_id, repo_title):
         time.sleep(0.5)  # check every half second
 
 def ensure_debug_session_started(build_id, repo):
+    if not is_paused:
+        return
+    
     session = bash_sessions.get(build_id)
     if session is None or session["process"].poll() is not None:
         start_debug_session({"repo": repo, "build_id": build_id})
