@@ -68,7 +68,6 @@ def api_events():
         repo_title = repo.get("full_name")
         repo_url = repo.get("clone_url")
         local_repo_path = os.path.join(REPO_DIRECTORY, repo_title.replace("/", "_"))
-        pr_title = event.get("title")
 
         # Skip builds for internal system repository
         if repo_title == "AadamYB/final-year-project":
@@ -84,6 +83,7 @@ def api_events():
             pr = event["pull_request"]
             pr_branch = pr.get("head", {}).get("ref")
             pr_number = pr.get("number")
+            pr_title = pr.get("title")
 
             # Start by emitting to socket so the frontend can pick up correct details
             socketio.emit("build-started", {
@@ -152,7 +152,6 @@ def api_events():
                     database.session.commit()
 
             except Exception as e:
-                log(f"❌ ERROR! Pipeline failed mid-execution: {e}", build_id=build_id)
                 finalize_failed_build(
                     build_id=build_id,
                     repo_title=repo_title,
@@ -771,7 +770,7 @@ def update_github_check(repo_title, check_run_id, conclusion="success", summary=
 
 def finalize_failed_build(build_id, repo_title, check_run_id, exception):
     """ Helper that updates the execution in the database when the pipeline execution fails """
-    log(f"❌ ERROR! Pipeline failed: {exception}", build_id=build_id)
+    log(f"❌ ERROR! Pipeline failed mid-execution: {exception}", build_id=build_id)
 
     if check_run_id:
         update_github_check(repo_title, check_run_id, "failure", str(exception), build_id=build_id)
