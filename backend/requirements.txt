@@ -5,3 +5,4 @@ eventlet
 PyYAML>=6.0
 PyJWT>=2.0
 flask_sqlalchemy
+psycopg2-binary
