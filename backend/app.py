@@ -14,6 +14,7 @@ import github_checks_helper as ghChecks
 from models import database, Execution
 
 app = Flask(__name__)
+database.init_app(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 REPO_DIRECTORY = "/tmp/repos"
 
