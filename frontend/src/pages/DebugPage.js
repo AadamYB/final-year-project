@@ -1,3 +1,4 @@
+import { useParams } from "react-router-dom";
 import React, { useState, useEffect } from "react";
 import styles from "../styles/DebugPage.module.css";
 import BuildListCard from "../Components/DebugCards/BuildListCard/BuildListCard";
@@ -23,6 +24,7 @@ const buildData = [
 ];
 
 const DebugPage = () => {
+  const { buildId } = useParams();
   const [repoTitle, setRepoTitle] = useState("");
   const [selectedBuild, setSelectedBuild] = useState(buildData[0]);
   const [isPaused, setIsPaused] = useState(false);
@@ -41,15 +43,29 @@ const DebugPage = () => {
       setLogs((prevLogs) => [...prevLogs, data.log]);
     });
 
+    socket.on("build-started", (data) => {
+      console.log("🚀 Build started:", data);
+    
+      setSelectedBuild({
+        status: data.status,
+        prName: data.pr_name,
+        date: new Date(data.timestamp).toLocaleDateString("en-GB"),
+        time: new Date(data.timestamp).toLocaleTimeString("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      });
+    
+      setRepoTitle(data.repo_title);
+    });
+
     socket.on("pause-configured", ({ breakpoints }) => {
       console.log("🧩 Initial breakpoints configured from backend:", breakpoints);
       setBreakpoints(breakpoints);
     });
-  
 
     socket.on("debug-session-started", (data) => {
       console.log("⭐ Debugging repo:", data.repo_title);
-      setRepoTitle(data.repo_title);
       setResumedPoint(null);
     });
 
@@ -109,6 +125,18 @@ const DebugPage = () => {
     });
   };
 
+  const getStatusIcon = (status) => {
+    switch (status?.toLowerCase()) {
+      case "passed":
+        return `${process.env.PUBLIC_URL}/icons/passed.png`;
+      case "failed":
+        return `${process.env.PUBLIC_URL}/icons/failed.png`;
+      case "pending":
+      default:
+        return `${process.env.PUBLIC_URL}/icons/pending.png`;
+    }
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.listContainer}>
@@ -128,7 +156,7 @@ const DebugPage = () => {
       <div className={styles.mainContentContainer}>
         <h1 className={styles.buildTitle}>
           <img
-            src={`${process.env.PUBLIC_URL}/icons/pending.png`}
+            src={getStatusIcon(selectedBuild.status)}
             alt={selectedBuild.status}
             className={styles.statusIcon}
           />
