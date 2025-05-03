@@ -59,7 +59,7 @@ def api_events():
         
         # is the PR closed? if so skip
         if event_type == "pull_request":
-            # log(event) # debugging purposes
+            log(event) # debugging purposes
             action = event.get("action")
             if action != "opened" and action != "synchronize":
                 return json.dumps({"message": f"Ignored PR action: {action}"}), 200
@@ -77,8 +77,8 @@ def api_events():
         
         build_id = generate_build_id(repo_title) # KEY AS THIS IS PASSED TO EVERYTHING
 
-        ci_config = load_ci_config(local_repo_path, build_id)
-        configure_breakpoints_from_ci(ci_config, build_id)
+        # ci_config = load_ci_config(local_repo_path, build_id) WHY CALLED TWICE?
+        # configure_breakpoints_from_ci(ci_config, build_id)
 
         log(f"🔧 Build session started with ID: {build_id}", tag="debug", build_id=build_id)
 
