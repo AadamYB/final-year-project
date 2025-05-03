@@ -504,8 +504,9 @@ def build_project(local_repo_path, repo_title, build_id):
     # Build docker image
     run_command_with_stream_output(f"docker build -t {image_name} {local_repo_path}", build_id, tag="build")
 
+    # SKIP THIS ENTIRELY - as the container doesn't exist yet - we can build on this later [TODO]
     # Stop and remove old container if exists
-    run_command_with_stream_output(f"docker rm -f {container_name} || true", build_id, tag="build")
+    # run_command_with_stream_output(f"docker rm -f {container_name} || true", build_id, tag="build")
 
     # Start container in background
     run_command_with_stream_output(
