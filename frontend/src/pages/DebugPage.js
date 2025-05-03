@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import React, { useState, useEffect } from "react";
 import styles from "../styles/DebugPage.module.css";
 import BuildListCard from "../Components/DebugCards/BuildListCard/BuildListCard";
@@ -17,9 +17,9 @@ const initialBreakpointStates = {
   test: { before: false, after: false },
 };
 
-
 const DebugPage = () => {
   const { buildId } = useParams();
+  const navigate = useNavigate();
   const [buildData, setBuildData] = useState([]);
   const [repoTitle, setRepoTitle] = useState("");
   const [selectedBuild, setSelectedBuild] = useState(null);
@@ -34,128 +34,115 @@ const DebugPage = () => {
   });
   const [logs, setLogs] = useState([]);
 
+  // Fetch list of builds
   useEffect(() => {
-    const fetchExecutionData = async () => {
-      try {
-        const res = await fetch(`http://13.40.55.105:5000/executions/${buildId}`);
-        const data = await res.json();
-        if (data?.logs) {
-          const logLines = data.logs.split("\n");
-          setLogs(logLines);
-        }
-        if (data?.repo_title) {
-          setRepoTitle(data.repo_title);
-        }
-      } catch (err) {
-        console.error("❌ Failed to fetch logs:", err);
-      }
-    };
-
     const fetchBuildList = async () => {
       try {
         const res = await fetch("http://13.40.55.105:5000/executions");
         const data = await res.json();
         setBuildData(data);
-    
-        // Optional: auto-select the first one if not already selected
-        if (!selectedBuild && data.length > 0) {
-          setSelectedBuild(data[0]);
-        }
       } catch (err) {
         console.error("❌ Failed to fetch build list:", err);
       }
     };
-  
+    fetchBuildList();
+  }, []);
+
+  // Sync selected build with the URL param
+  useEffect(() => {
+    const match = buildData.find((b) => b.id === buildId);
+    setSelectedBuild(match || null);
+  }, [buildId, buildData]);
+
+  // Fetch individual build logs & title
+  useEffect(() => {
+    const fetchExecutionData = async () => {
+      try {
+        const res = await fetch(`http://13.40.55.105:5000/executions/${buildId}`);
+        const data = await res.json();
+
+        if (data?.logs) setLogs(data.logs.split("\n"));
+        if (data?.repo_title) setRepoTitle(data.repo_title);
+      } catch (err) {
+        console.error("❌ Failed to fetch logs:", err);
+      }
+    };
+
     if (buildId) {
       fetchExecutionData();
       localStorage.setItem("lastBuildId", buildId);
     }
+  }, [buildId]);
 
-    fetchBuildList();
-
+  // Socket event bindings
+  useEffect(() => {
     socket.on("log", (data) => {
-      setLogs((prevLogs) => [...prevLogs, data.log]);
+      if (data.build_id === buildId) {
+        setLogs((prevLogs) => [...prevLogs, data.log]);
+      }
     });
 
     socket.on("build-started", (data) => {
       console.log("🚀 Build started:", data);
-    
-      setSelectedBuild({
-        status: data.status,
-        prName: data.pr_name,
-        date: new Date(data.timestamp).toLocaleDateString("en-GB"),
-        time: new Date(data.timestamp).toLocaleTimeString("en-GB", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      });
-    
       setRepoTitle(data.repo_title);
     });
 
     socket.on("pause-configured", ({ breakpoints }) => {
-      console.log("🧩 Initial breakpoints configured from backend:", breakpoints);
       setBreakpoints(breakpoints);
     });
 
-    socket.on("debug-session-started", (data) => {
-      console.log("⭐ Debugging repo:", data.repo_title);
+    socket.on("debug-session-started", () => {
       setResumedPoint(null);
     });
 
     socket.on("allow-breakpoint-edit", ({ stage, when }) => {
-      console.log("✅ Breakpoints can now be edited");
       setCanEditBreakpoints(true);
       setIsPaused(true);
       setResumeTarget({ stage: stage.toLowerCase(), type: when.toLowerCase() });
     });
 
-    socket.on("active-stage-update", (data) => {
-      console.log("🛠 Stage changed to:", data.stage);
-      setActiveStage({ stage: data.stage, step: "" });
+    socket.on("active-stage-update", ({ stage }) => {
+      setActiveStage({ stage, step: "" });
       setResumeTarget(null);
-      setResumedPoint(null); // Reset resume visuals
+      setResumedPoint(null);
     });
 
     return () => {
       socket.off("log");
       socket.off("build-started");
+      socket.off("pause-configured");
+      socket.off("debug-session-started");
       socket.off("allow-breakpoint-edit");
       socket.off("active-stage-update");
-      socket.off("debug-session-started");
-      socket.off("pause-configured");
     };
-  }, [buildId, selectedBuild]);
+  }, [buildId]);
 
   const toggleBreakpoint = (stage, type) => {
     if (!canEditBreakpoints) return;
-  
+
     const isResumePoint = resumeTarget?.stage === stage && resumeTarget?.type === type;
     const isPastStage = stageOrder.indexOf(stage) < stageOrder.indexOf(activeStage.stage);
-  
-    // Prevent toggling past or already resumed breakpoints
+
     if (isPastStage || (resumedPoint?.stage === stage && resumedPoint?.type === type)) return;
-  
+
     setBreakpoints((prev) => {
-      const currentValue = prev[stage][type];
-  
       const updated = {
         ...prev,
         [stage]: {
           ...prev[stage],
-          [type]: !currentValue, // toggle normally
+          [type]: !prev[stage][type],
         },
       };
-  
+
       socket.emit("update-breakpoints", updated);
-  
-      if (isResumePoint && currentValue === true) {
+
+      if (isResumePoint && prev[stage][type]) {
         socket.emit("resume");
         setIsPaused(false);
         setCanEditBreakpoints(false);
         setResumedPoint({ stage, type });
       }
-  
+
       return updated;
     });
   };
@@ -183,7 +170,9 @@ const DebugPage = () => {
             date={build.date}
             time={build.time}
             isActive={selectedBuild?.id === build.id}
-            onClick={() => setSelectedBuild(build)}
+            onClick={() => {
+              navigate(`/debug/${build.id}`);
+            }}
           />
         ))}
       </div>
@@ -191,13 +180,13 @@ const DebugPage = () => {
       {selectedBuild ? (
         <div className={styles.mainContentContainer}>
           <h1 className={styles.buildTitle}>
-          {selectedBuild.status && (
-            <img
-              src={getStatusIcon(selectedBuild.status)}
-              alt={selectedBuild.status}
-              className={styles.statusIcon}
-            />
-          )}
+            {selectedBuild.status && (
+              <img
+                src={getStatusIcon(selectedBuild.status)}
+                alt={selectedBuild.status}
+                className={styles.statusIcon}
+              />
+            )}
             {selectedBuild.status} - {selectedBuild.pr_name}
           </h1>
 

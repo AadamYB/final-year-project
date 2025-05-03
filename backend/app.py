@@ -390,10 +390,10 @@ def handle_disconnect():
 def log(message, tag=None, build_id=None):
     """ Utility function that prints and emits the string message with a timestamp """
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    formatted_msg = f"[{timestamp}] [{'{}] '.format(tag.upper()) if tag else ''}{message}"
+    formatted_msg = f"[{timestamp}] {'[{}] '.format(tag.upper()) if tag else ''}{message}"
 
     print(formatted_msg)
-    socketio.emit('log', {'log': formatted_msg})
+    socketio.emit('log', {'log': formatted_msg, 'build_id': build_id})
 
     if build_id:
         if build_id not in collected_logs:
@@ -595,7 +595,9 @@ def run_tests(local_repo_path, repo_title, build_id):
                 tag="test",
                 build_id=build_id
             )
-        raise Exception("❌ ERROR! No tests discovered.")
+
+        log("❌ Test discovery failed — raising root error with full context...", tag="test", build_id=build_id)
+        raise Exception(f"❌ ERROR! No tests discovered due to the following root error:\n\n{full_output}")
 
     if process.returncode != 0:
         raise Exception(f"❌ Tests failed!\n{full_output}")
