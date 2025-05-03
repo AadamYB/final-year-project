@@ -213,6 +213,14 @@ def start_debug_session(data):
         log(f"🔁 Debug session already active for {build_id}", tag="debug", build_id=build_id)
         return
     
+    # Add a check to see if this is an old execution - DO NOT START DEBUG SESSION
+    execution = Execution.query.get(build_id)
+    if execution and execution.status in {"Passed", "Failed"}:
+        log(f"🕰 Replaying debug session for old build: {build_id}", tag="debug", build_id=build_id)
+    elif not is_paused:
+        log("⛔️ Ignoring debug start: not paused, not replay, and no active session", tag="debug", build_id=build_id)
+        return
+    
     log(f"🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}", tag="debug", build_id=build_id)
 
     # Create interactive bash
