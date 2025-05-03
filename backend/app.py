@@ -50,6 +50,7 @@ def api_events():
         # We only want push and pull request events to get processed - otherwise ignore
         # if event_type not in {"pull_request", "push"}:
         if event_type != "pull_request":
+            log(event) # debugging purposes
             return json.dumps({"message": f"Ignored event type: {event_type}"}), 200
         
         # is the PR closed? if so skip
