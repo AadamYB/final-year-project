@@ -315,12 +315,13 @@ def handle_update_breakpoints(data):
 def handle_console_command(data):
     command = data.get('command')
     repo_title = data.get('repoTitle')
+    build_id = data.get('buildId')
 
     if not command or not repo_title:
         emit('console-output', {'output': '❌ ERROR: Missing command or repo title'})
         return
 
-    container_name = re.sub(r'[^a-zA-Z0-9_\-]', '', repo_title).lower() + "-container"
+    container_name = re.sub(r'[^a-zA-Z0-9_\-]', '', build_id).lower() + "-container"
     docker_command = f'docker exec -i {container_name} /bin/bash -c "{command}"'
 
     socketio.emit('console-output', {'output': f"📟 Executing: {command}"})
