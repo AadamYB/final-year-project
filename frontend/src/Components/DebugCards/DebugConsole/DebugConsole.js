@@ -1,61 +1,70 @@
-import React, { useEffect, useRef } from "react";
-import { Terminal } from "xterm";
-import "xterm/css/xterm.css";
-import io from "socket.io-client";
+import React, { useState, useEffect, useRef } from "react";
 import styles from "./DebugConsole.module.css";
+import io from "socket.io-client";
 
 const socket = io("http://13.40.55.105:5000");
 
 const DebugConsole = ({ buildId, repoTitle, isPaused }) => {
-  const terminalRef = useRef();
-  const hasStartedRef = useRef(null); // Use null instead of false for clarity
+  const [input, setInput] = useState("");
+  const [history, setHistory] = useState([]);
+  const [prompt, setPrompt] = useState("user@13.40.55.105:~$ ");
+  const inputRef = useRef();
+  const bottomRef = useRef();
+  const hasStartedRef = useRef(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [history]);
 
   useEffect(() => {
     if (!repoTitle || !isPaused || !buildId) return;
-
     if (hasStartedRef.current === buildId) return;
+
     hasStartedRef.current = buildId;
-
     socket.emit("start-debug", { repo: repoTitle, build_id: buildId });
+  }, [repoTitle, buildId, isPaused]);
 
-    const term = new Terminal({
-      fontFamily: "monospace",
-      fontSize: 14,
-      theme: {
-        background: "#1e1e1e",
-        foreground: "#d4d4d4",
-      },
-      cursorBlink: true,
-      scrollback: 500,
+  useEffect(() => {
+    socket.on("console-output", (data) => {
+      setHistory((prev) => [...prev, data.output]);
     });
 
-    requestAnimationFrame(() => {
-      if (terminalRef.current?.offsetWidth > 0) {
-        term.open(terminalRef.current);
-        term.focus();
-        term.write("\r\n");
+    socket.on("prompt-update", (data) => {
+      if (data.prompt) {
+        setPrompt(data.prompt);
       }
     });
 
-    term.onData((data) => {
-      socket.emit("console-command", {
-        command: data,
-        repoTitle,
-        build_id: buildId,
-      });
-    });
-
-    socket.on("console-output", (data) => {
-      term.write(data.output);
-    });
-
     return () => {
-      socket.emit("stop-debug", { build_id: buildId });
-      hasStartedRef.current = null;
+      // Only stop debug session if it was started and pipeline is still paused
+      if (hasStartedRef.current === buildId && isPaused) {
+        socket.emit("stop-debug", { build_id: buildId });
+      }
+
       socket.off("console-output");
-      term.dispose();
+      socket.off("prompt-update");
+      hasStartedRef.current = null;
     };
-  }, [repoTitle, buildId, isPaused]);
+  }, [buildId, isPaused]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      const fullInput = prompt + input;
+      setHistory((prev) => [...prev, fullInput]);
+
+      socket.emit("console-command", {
+        command: input,
+        repoTitle,
+        buildId: buildId,
+      });
+
+      setInput("");
+    }
+  };
 
   return (
     <div className={styles.container}>
@@ -68,8 +77,31 @@ const DebugConsole = ({ buildId, repoTitle, isPaused }) => {
         <h3> Debug Console </h3>
       </div>
       <hr />
-      <div className={styles.terminalWrapper}>
-        <div ref={terminalRef} className={styles.terminalContainer} />
+      <div className={styles.terminal} onClick={() => inputRef.current?.focus()}>
+        <div className={styles.console}>
+          {history.map((line, i) => (
+            <pre key={i} className={styles.consoleLine}>
+              {line}
+            </pre>
+          ))}
+          <div className={styles.inputLine}>
+            <span className={styles.prompt}>{prompt}</span>
+            <span className={styles.displayedWrapper}>
+              <span className={styles.displayedInput}>{input}</span>
+              <span className={styles.cursor}></span>
+            </span>
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className={styles.hiddenInput}
+              autoComplete="off"
+            />
+            <div ref={bottomRef} />
+          </div>
+        </div>
       </div>
     </div>
   );

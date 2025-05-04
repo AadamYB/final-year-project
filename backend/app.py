@@ -318,6 +318,11 @@ def handle_console_command(data):
     repo_title = data.get('repoTitle')
     build_id = data.get('buildId')
 
+    execution = Execution.query.get(build_id)
+    if not is_paused and execution and execution.status in {"Passed", "Failed"}:
+        emit('console-output', {'output': '⛔️ Debug console is only available during a paused or active debug session.'})
+        return
+
     if not command or not repo_title:
         emit('console-output', {'output': '❌ ERROR: Missing command or repo title'})
         return
@@ -819,7 +824,7 @@ def listen_to_bash(build_id, repo):
 
             socketio.emit("console-output", {"output": output + prompt})
 
-    log(f"❌ Debug session exited for {build_id}", tag="debug", build_id=build_id)
+    log(f"‼️ Debug session exited for {build_id}", tag="debug", build_id=build_id)
 
 def periodically_flush_logs(build_id):
     """Efficient flushing only when logs change."""
