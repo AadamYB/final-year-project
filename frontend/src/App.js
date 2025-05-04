@@ -17,7 +17,7 @@ function App() {
 
         <Routes>
           <Route path="/dashboard" element={<Dashboard Repo_name={"REPO NAME"}/>} /> {/*UPDATE THE REPO NAME HERE*/}
-          <Route path="/pipeline" element={<Pipeline />} />
+          <Route path="/pipeline-config" element={<Pipeline />} />
           <Route path="/debug/:buildId" element={<DebugPage />} />
         </Routes>
       </div>

@@ -214,6 +214,41 @@ def get_all_executions():
         })
     return json.dumps(data)
 
+@app.route("/pipeline-config/<repo_name>", methods=["GET"])
+def get_pipeline_config(repo_name):
+    path = os.path.join(REPO_DIRECTORY, repo_name, ".ci.yml")
+    if not os.path.exists(path):
+        return {"error": ".ci.yml not found"}, 404
+
+    with open(path, "r") as f:
+        content = f.read()
+    return {"content": content}
+
+@app.route("/pipeline-config/<repo_name>", methods=["POST"])
+def save_pipeline_config(repo_name):
+    data = request.json
+    yaml_content = data.get("content")
+
+    if not yaml_content:
+        return {"error": "No content provided"}, 400
+
+    local_repo_path = os.path.join(REPO_DIRECTORY, repo_name)
+    ci_file_path = os.path.join(local_repo_path, ".ci.yml")
+
+    os.makedirs(local_repo_path, exist_ok=True)
+
+    with open(ci_file_path, "w") as f:
+        f.write(yaml_content)
+
+    try:
+        subprocess.check_output(["git", "-C", local_repo_path, "add", ".ci.yml"])
+        subprocess.check_output(["git", "-C", local_repo_path, "commit", "-m", "🔧 Update .ci.yml via dashboard"])
+        subprocess.check_output(["git", "-C", local_repo_path, "push", "origin", "main"])
+    except subprocess.CalledProcessError as e:
+        return {"error": f"Git push failed: {e.output.decode()}"}, 500
+
+    return {"status": "success"}
+
 @socketio.on('connect')
 def handle_connect():
     log("🛜 WebSocket client connected ✅")

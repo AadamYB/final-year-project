@@ -9,7 +9,7 @@ const MenuBar = () => {
 
   const menuItems = [
     { name: "Debug", icon: "log.png", path: "/debug" },
-    { name: "Pipeline", icon: "pipeline.png", path: "/pipeline" },
+    { name: "Pipeline", icon: "pipeline.png", path: "/pipeline-config" },
     { name: "Dashboard", icon: "dashboard.png", path: "/dashboard/" },
     { name: "Account", icon:"user_1.png", path: "/user-details"}
   ];
