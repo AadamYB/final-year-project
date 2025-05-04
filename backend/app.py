@@ -27,6 +27,7 @@ breakpoints = {
     "test": {"before": False, "after": False},
 }
 bash_sessions = {}
+debug_started_flags = {}
 collected_logs = {}
 is_paused = False
 
@@ -222,11 +223,15 @@ def start_debug_session(data):
     repo = data.get("repo")
     build_id = data.get("build_id")
 
-    # New check
     if build_id in bash_sessions and bash_sessions[build_id]["process"].poll() is None:
         log(f"🔁 Debug session already active for {build_id}", tag="debug", build_id=build_id)
         return
-    
+
+    if debug_started_flags.get(build_id):
+        log(f"⛔️ Skipping duplicate debug start for {build_id}", tag="debug", build_id=build_id)
+        return
+    debug_started_flags[build_id] = True
+
     # Add a check to see if this is an old execution - DO NOT START DEBUG SESSION
     execution = Execution.query.get(build_id)
     if execution and execution.status in {"Passed", "Failed"}:
@@ -234,12 +239,11 @@ def start_debug_session(data):
     elif not is_paused:
         log("⛔️ Ignoring debug start: not paused, not replay, and no active session", tag="debug", build_id=build_id)
         return
-    
+
     log(f"🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}", tag="debug", build_id=build_id)
 
-    # Create interactive bash
-    log(f"🪛 Using container: {container_name}", tag="debug", build_id=build_id)
     container_name = f"{build_id.lower()}-container"
+    log(f"🪛 Using container: {container_name}", tag="debug", build_id=build_id)
 
     master_fd, slave_fd = pty.openpty()
     process = subprocess.Popen(
@@ -255,7 +259,7 @@ def start_debug_session(data):
         "process": process,
         "master_fd": master_fd,
         "cwd": "~",
-        "lock": Lock()  # this should fix the race conditions issue
+        "lock": Lock()   # this should fix the race conditions issue
     }
     socketio.emit("debug-session-started", {"build_id": build_id})
 
@@ -266,21 +270,19 @@ def start_debug_session(data):
                 with bash_sessions[build_id]["lock"]:
                     output = os.read(master_fd, 1024).decode()
 
-                 # Custom prompt - should be like this: " repo-name@13.40.55.105 ~$ "
+                # Custom prompt - should be like this: " repo-name@13.40.55.105 ~$ "
                 if output:
                     user = repo.split("/")[-1]
                     ip = "13.40.55.105"
                     cwd = bash_sessions[build_id]["cwd"]
                     prompt = f"\n{user}@{ip} {cwd} ~$ "
-                    
                     if not ascii_shown:
                         output = DEBUG_ASCII_ART + "\n" + output
                         ascii_shown = True
-
                     socketio.emit('console-output', {'output': output + prompt})
             except Exception:
                 break
-    
+
     threading.Thread(target=listen_to_bash, daemon=True).start()
 
 @socketio.on("stop-debug")
@@ -369,10 +371,10 @@ def handle_pause(data):
     log("⏸️ Pause signal received from frontend! Pausing pipeline...", tag="debug", build_id=build_id)
 
 @socketio.on('resume')
-def handle_resume(data):
+def handle_resume(data=None):
     global is_paused
     is_paused = False
-    build_id = data.get('build_id')
+    build_id = data.get('build_id') if data else None
     log(f"🟢 Resume signal received! Continuing pipeline...", tag="debug", build_id=build_id)
 
 @socketio.on('disconnect')

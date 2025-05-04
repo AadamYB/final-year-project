@@ -51,6 +51,7 @@ const DebugConsole = ({ buildId, repoTitle, isPaused }) => {
 
     return () => {
       socket.emit("stop-debug", { build_id: buildId });
+      hasStartedRef.current = null;
       socket.off("console-output");
       term.dispose();
     };
