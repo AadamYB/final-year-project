@@ -216,24 +216,12 @@ def get_all_executions():
 
 @app.route("/pipeline-config/<repo_name>", methods=["GET"])
 def get_pipeline_config(repo_name):
-    local_repo_path = os.path.join(REPO_DIRECTORY, repo_name)
-    
-    # Ensure repo exists & pull latest main branch - we could use the existing path which will just  grab whatever branch we are checked out on atm
-    if not os.path.exists(local_repo_path):
-        return {"error": "Repository not cloned"}, 404
-
-    try:
-        subprocess.check_output(["git", "-C", local_repo_path, "checkout", "main"])
-        subprocess.check_output(["git", "-C", local_repo_path, "pull", "origin", "main"])
-    except subprocess.CalledProcessError as e:
-        return {"error": f"Git error: {e.output.decode()}"}, 500
-
-    ci_file_path = os.path.join(local_repo_path, ".ci.yml")
-    if not os.path.exists(ci_file_path):
+    path = os.path.join(REPO_DIRECTORY, repo_name, ".ci.yml")
+    if not os.path.exists(path):
         return {"error": ".ci.yml not found"}, 404
 
-    with open(ci_file_path, "r") as file:
-        content = file.read()
+    with open(path, "r") as f:
+        content = f.read()
     return {"content": content}
 
 @app.route("/pipeline-config/<repo_name>", methods=["POST"])
@@ -249,13 +237,15 @@ def save_pipeline_config(repo_name):
 
     os.makedirs(local_repo_path, exist_ok=True)
 
-    with open(ci_file_path, "w") as f:
-        f.write(yaml_content)
+    with open(ci_file_path, "w") as file:
+        file.write(yaml_content)
 
     try:
+        current_branch = subprocess.check_output(["git", "-C", local_repo_path, "rev-parse", "--abbrev-ref", "HEAD"],text=True).strip()
+
         subprocess.check_output(["git", "-C", local_repo_path, "add", ".ci.yml"])
-        subprocess.check_output(["git", "-C", local_repo_path, "commit", "-m", "🔧 Update .ci.yml via dashboard"])
-        subprocess.check_output(["git", "-C", local_repo_path, "push", "origin", "main"])
+        subprocess.check_output(["git", "-C", local_repo_path, "commit", "-m", "🔧 Update .ci.yml via pipeline configurator"])
+        subprocess.check_output(["git", "-C", local_repo_path, "push", "origin", current_branch])
     except subprocess.CalledProcessError as e:
         return {"error": f"Git push failed: {e.output.decode()}"}, 500
 
