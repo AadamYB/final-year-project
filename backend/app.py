@@ -29,6 +29,7 @@ breakpoints = {
 bash_sessions = {}
 debug_started_flags = {}
 collected_logs = {}
+flush_threads_started = set()
 is_paused = False
 
 DEBUG_ASCII_ART = """
@@ -396,6 +397,10 @@ def log(message, tag=None, build_id=None):
         if build_id not in collected_logs:
             collected_logs[build_id] = []
         collected_logs[build_id].append(formatted_msg)
+
+        if build_id not in flush_threads_started:
+            flush_threads_started.add(build_id)
+            threading.Thread(target=periodically_flush_logs, args=(build_id,), daemon=True).start()
 
 
 def clone_or_pull(repo_url, local_repo_path, repo_title, build_id, branch):
@@ -815,6 +820,22 @@ def listen_to_bash(build_id, repo):
             socketio.emit("console-output", {"output": output + prompt})
 
     log(f"❌ Debug session exited for {build_id}", tag="debug", build_id=build_id)
+
+def periodically_flush_logs(build_id):
+    """Efficient flushing only when logs change."""
+    previous_log_len = 0
+    while build_id in collected_logs:
+        time.sleep(0.1)
+        current_logs = collected_logs.get(build_id, [])
+        if len(current_logs) > previous_log_len:
+            execution = Execution.query.get(build_id)
+            if execution:
+                execution.logs = "\n".join(current_logs)
+                try:
+                    database.session.commit()
+                    previous_log_len = len(current_logs)
+                except Exception as e:
+                    log(f"⚠️ Could not flush logs: {e}", tag="debug", build_id=build_id)
 
 # ------------------------------------------------------------
 
