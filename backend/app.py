@@ -335,7 +335,7 @@ def handle_console_command(data):
     build_id = data.get('build_id') 
 
     if not char or not build_id:
-        emit('console-output', {'output': '❌ ERROR! Missing command or repoTitle'})
+        emit('console-output', {'output': '❌ ERROR! Missing command or associated build_id'})
         return
 
     session = bash_sessions.get(build_id)
@@ -344,11 +344,11 @@ def handle_console_command(data):
         return
 
     master_fd = session["master_fd"]
-    process = session["process"]
 
-    # Track `cd` commands - well when we fix the debug console
+    # Handle cd command manually to track `cwd`
     if char.startswith("cd "):
         new_dir = char.strip().split("cd ")[-1].strip()
+
         if new_dir == "..":
             session["cwd"] = os.path.dirname(session["cwd"])
         elif new_dir.startswith("/"):
@@ -356,10 +356,17 @@ def handle_console_command(data):
         else:
             session["cwd"] = os.path.normpath(os.path.join(session["cwd"], new_dir))
 
-
     try:
         with session["lock"]:
-            os.write(master_fd, char.encode())
+            os.write(master_fd, (char + "\n").encode())
+        
+        # After command runs, always emit updated prompt
+        user = repo_title.split("/")[-1]
+        ip = "13.40.55.105"
+        cwd = session["cwd"]
+        prompt = f"{user}@{ip} {cwd} ~$ "
+        socketio.emit("prompt-update", {"prompt": prompt}, to=request.sid)
+
     except Exception as e:
         emit('console-output', {'output': f"❌ ERROR! Exception: {str(e)}"})
 
