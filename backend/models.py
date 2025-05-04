@@ -9,3 +9,4 @@ class Execution(database.Model):
     timestamp = database.Column(database.DateTime, nullable=False)
     status = database.Column(database.String, nullable=False)
     logs = database.Column(database.Text, nullable=True)
+    active_stage = database.Column(database.String, nullable=True)

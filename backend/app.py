@@ -147,6 +147,7 @@ def api_events():
                 execution = Execution.query.get(build_id)
                 if execution:
                     execution.status = "Passed"
+                    execution.active_stage = None
                 if execution and build_id in collected_logs:
                     execution.logs = "\n".join(collected_logs[build_id])
                     database.session.commit()
@@ -193,6 +194,7 @@ def get_execution(build_id):
         "timestamp": execution.timestamp.isoformat(),
         "status": execution.status,
         "logs": execution.logs or "",
+        "active_stage": execution.active_stage or "",
     }
 
 @app.route("/executions", methods=["GET"])
@@ -405,6 +407,7 @@ def clone_or_pull(repo_url, local_repo_path, repo_title, build_id, branch):
         Pulls latest changes from the repository """
     
     socketio.emit('active-stage-update', {'stage': 'setup'})
+    update_active_stage(build_id, "setup")
     pause_execution('setup', 'before', build_id, repo_title)   # Can optionally pause a pileline before executing command
 
     if not os.path.exists(local_repo_path):
@@ -509,6 +512,7 @@ def build_project(local_repo_path, repo_title, build_id):
     """ Builds the project inside a Docker container """
 
     socketio.emit('active-stage-update', {'stage': 'build'})
+    update_active_stage(build_id, "build")
     pause_execution('build', 'before', build_id, repo_title)   # Can choose to pause pipeline if we want - according to user
 
     log(f"🏗️ Building project in {local_repo_path}", tag="build", build_id=build_id)
@@ -545,6 +549,7 @@ def run_tests(local_repo_path, repo_title, build_id):
     """ Runs the test scripts for the user project also stream output """
 
     socketio.emit('active-stage-update', {'stage': 'test'})
+    update_active_stage(build_id, "test")
     pause_execution('test', 'before', build_id, repo_title) 
 
     log(f"🧪 Running tests in {local_repo_path}", tag="test", build_id=build_id)
@@ -689,6 +694,11 @@ def run_command_with_stream_output(cmd, build_id, cwd=None, tag=None):
         log(f"⛔️ ERROR during [{tag}] stage. ❌ Exit Code: {process.returncode}", tag="error", build_id=build_id)
         raise Exception(f"Stage [{tag}] failed with exit code {process.returncode}")
     
+def update_active_stage(build_id, stage):
+    execution = Execution.query.get(build_id)
+    if execution:
+        execution.active_stage = stage
+        database.session.commit()
 
 def pause_execution(stage, when, build_id, repo_title):
     """ helper function that pauses an execution """
