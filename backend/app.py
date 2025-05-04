@@ -223,13 +223,11 @@ def start_debug_session(data):
     repo = data.get("repo")
     build_id = data.get("build_id")
 
-    # Clean up if a session exists but process is dead
     session = bash_sessions.get(build_id)
-    if session:
-        if session["process"].poll() is not None:
-            log(f"♻️ Cleaning up dead session for {build_id}", tag="debug", build_id=build_id)
-            bash_sessions.pop(build_id, None)
-            debug_started_flags.pop(build_id, None)
+    if session and session["process"].poll() is not None:
+        log(f"♻️ Cleaning up dead session for {build_id}", tag="debug", build_id=build_id)
+        bash_sessions.pop(build_id, None)
+        debug_started_flags.pop(build_id, None)
 
     if debug_started_flags.get(build_id):
         log(f"🔁 Re-attaching debug session for {build_id}", tag="debug", build_id=build_id)
@@ -238,7 +236,6 @@ def start_debug_session(data):
 
     debug_started_flags[build_id] = True
 
-    # Only allow session if paused or replaying
     execution = Execution.query.get(build_id)
     if execution and execution.status in {"Passed", "Failed"}:
         log(f"🕰 Replaying debug session for old build: {build_id}", tag="debug", build_id=build_id)
@@ -251,26 +248,26 @@ def start_debug_session(data):
     container_name = f"{build_id.lower()}-container"
     log(f"🪛 Using container: {container_name}", tag="debug", build_id=build_id)
 
-    master_fd, slave_fd = pty.openpty()
     process = subprocess.Popen(
         ["docker", "exec", "-i", container_name, "bash"],
-        stdin=slave_fd,
-        stdout=slave_fd,
-        stderr=slave_fd,
-        universal_newlines=True
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1
     )
 
     bash_sessions[build_id] = {
         "process": process,
-        "master_fd": master_fd,
+        "stdin": process.stdin,
+        "stdout": process.stdout,
         "cwd": "~",
         "lock": Lock()
     }
 
     socketio.emit("debug-session-started", {"build_id": build_id})
-
     threading.Thread(target=listen_to_bash, args=(build_id, repo), daemon=True).start()
-
+    
 @socketio.on("stop-debug")
 def stop_debug(data):
     build_id = data.get("build_id")
@@ -798,28 +795,23 @@ def listen_to_bash(build_id, repo):
     if not session:
         return
 
-    master_fd = session["master_fd"]
+    process = session["process"]
+    stdout = session["stdout"]
     ascii_shown = False
 
-    while True:
-        try:
-            with session["lock"]:
-                output = os.read(master_fd, 1024).decode()
+    for line in stdout:
+        if line:
+            user = repo.split("/")[-1]
+            ip = "13.40.55.105"
+            cwd = session["cwd"]
+            prompt = f"\n{user}@{ip} {cwd} ~$ "
 
-            if output:
-                user = repo.split("/")[-1]
-                ip = "13.40.55.105"
-                cwd = session["cwd"]
-                prompt = f"\n{user}@{ip} {cwd} ~$ "
+            output = (DEBUG_ASCII_ART + "\n" + line) if not ascii_shown else line
+            ascii_shown = True
 
-                if not ascii_shown:
-                    output = DEBUG_ASCII_ART + "\n" + output
-                    ascii_shown = True
+            socketio.emit("console-output", {"output": output + prompt})
 
-                socketio.emit('console-output', {'output': output + prompt})
-        except Exception as e:
-            log(f"⚠️ listen_to_bash error for {build_id}: {str(e)}", tag="debug", build_id=build_id)
-            break
+    log(f"❌ Debug session exited for {build_id}", tag="debug", build_id=build_id)
 
 # ------------------------------------------------------------
 
