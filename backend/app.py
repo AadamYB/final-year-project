@@ -223,16 +223,22 @@ def start_debug_session(data):
     repo = data.get("repo")
     build_id = data.get("build_id")
 
-    if build_id in bash_sessions and bash_sessions[build_id]["process"].poll() is None:
-        log(f"🔁 Debug session already active for {build_id}", tag="debug", build_id=build_id)
-        return
+    # Clean up if a session exists but process is dead
+    session = bash_sessions.get(build_id)
+    if session:
+        if session["process"].poll() is not None:
+            log(f"♻️ Cleaning up dead session for {build_id}", tag="debug", build_id=build_id)
+            bash_sessions.pop(build_id, None)
+            debug_started_flags.pop(build_id, None)
 
     if debug_started_flags.get(build_id):
-        log(f"⛔️ Skipping duplicate debug start for {build_id}", tag="debug", build_id=build_id)
+        log(f"🔁 Re-attaching debug session for {build_id}", tag="debug", build_id=build_id)
+        threading.Thread(target=listen_to_bash, args=(build_id, repo), daemon=True).start()
         return
+
     debug_started_flags[build_id] = True
 
-    # Add a check to see if this is an old execution - DO NOT START DEBUG SESSION
+    # Only allow session if paused or replaying
     execution = Execution.query.get(build_id)
     if execution and execution.status in {"Passed", "Failed"}:
         log(f"🕰 Replaying debug session for old build: {build_id}", tag="debug", build_id=build_id)
@@ -240,7 +246,7 @@ def start_debug_session(data):
         log("⛔️ Ignoring debug start: not paused, not replay, and no active session", tag="debug", build_id=build_id)
         return
 
-    log(f"🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}", tag="debug", build_id=build_id)
+    log(f"🐞 STARTING LIVE DEBUGGING SESSION 🪲 for {repo}", tag="debug", build_id=build_id)
 
     container_name = f"{build_id.lower()}-container"
     log(f"🪛 Using container: {container_name}", tag="debug", build_id=build_id)
@@ -254,36 +260,16 @@ def start_debug_session(data):
         universal_newlines=True
     )
 
-    # to track the current working directory for each session
     bash_sessions[build_id] = {
         "process": process,
         "master_fd": master_fd,
         "cwd": "~",
-        "lock": Lock()   # this should fix the race conditions issue
+        "lock": Lock()
     }
+
     socketio.emit("debug-session-started", {"build_id": build_id})
 
-    def listen_to_bash():
-        ascii_shown = False
-        while True:
-            try:
-                with bash_sessions[build_id]["lock"]:
-                    output = os.read(master_fd, 1024).decode()
-
-                # Custom prompt - should be like this: " repo-name@13.40.55.105 ~$ "
-                if output:
-                    user = repo.split("/")[-1]
-                    ip = "13.40.55.105"
-                    cwd = bash_sessions[build_id]["cwd"]
-                    prompt = f"\n{user}@{ip} {cwd} ~$ "
-                    if not ascii_shown:
-                        output = DEBUG_ASCII_ART + "\n" + output
-                        ascii_shown = True
-                    socketio.emit('console-output', {'output': output + prompt})
-            except Exception:
-                break
-
-    threading.Thread(target=listen_to_bash, daemon=True).start()
+    threading.Thread(target=listen_to_bash, args=(build_id, repo), daemon=True).start()
 
 @socketio.on("stop-debug")
 def stop_debug(data):
@@ -806,6 +792,34 @@ def finalize_failed_build(build_id, repo_title, check_run_id, exception):
             "build_id": build_id,
             "status": "Failed"
         })
+
+def listen_to_bash(build_id, repo):
+    session = bash_sessions.get(build_id)
+    if not session:
+        return
+
+    master_fd = session["master_fd"]
+    ascii_shown = False
+
+    while True:
+        try:
+            with session["lock"]:
+                output = os.read(master_fd, 1024).decode()
+
+            if output:
+                user = repo.split("/")[-1]
+                ip = "13.40.55.105"
+                cwd = session["cwd"]
+                prompt = f"\n{user}@{ip} {cwd} ~$ "
+
+                if not ascii_shown:
+                    output = DEBUG_ASCII_ART + "\n" + output
+                    ascii_shown = True
+
+                socketio.emit('console-output', {'output': output + prompt})
+        except Exception as e:
+            log(f"⚠️ listen_to_bash error for {build_id}: {str(e)}", tag="debug", build_id=build_id)
+            break
 
 # ------------------------------------------------------------
 
