@@ -147,7 +147,7 @@ def api_events():
                 execution = Execution.query.get(build_id)
                 if execution:
                     execution.status = "Passed"
-                    execution.active_stage = None
+                    # execution.active_stage = None - does this get rid of the last active stage causing the default to be setup?
                 if execution and build_id in collected_logs:
                     execution.logs = "\n".join(collected_logs[build_id])
                     database.session.commit()
