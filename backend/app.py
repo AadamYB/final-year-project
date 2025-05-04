@@ -238,7 +238,7 @@ def start_debug_session(data):
     log(f"🐞STARTING LIVE DEBUGGING SESSION🪲 for {repo}", tag="debug", build_id=build_id)
 
     # Create interactive bash
-    build_id = re.sub(r'[^a-zA-Z0-9_\-]', '', repo)
+    log(f"🪛 Using container: {container_name}", tag="debug", build_id=build_id)
     container_name = f"{build_id.lower()}-container"
 
     master_fd, slave_fd = pty.openpty()
