@@ -117,6 +117,7 @@ def api_events():
 
                 # Load .ci.yml if it exists
                 ci_config = load_ci_config(local_repo_path, build_id)
+                configure_breakpoints_from_ci(ci_config, build_id)
 
                 # Conditionally execute steps
 

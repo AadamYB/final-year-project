@@ -6,16 +6,15 @@ import styles from "./DebugConsole.module.css";
 
 const socket = io("http://13.40.55.105:5000");
 
-const DebugConsole = ({ repoTitle, isPaused }) => {
+const DebugConsole = ({ buildId, repoTitle, isPaused }) => {
   const terminalRef = useRef();
-  const buildId = repoTitle ? `${repoTitle.replace("/", "_")}-frontend` : "unknown-build";
-  const hasStartedRef = useRef(false);
+  const hasStartedRef = useRef(null); // Use null instead of false for clarity
 
   useEffect(() => {
-    if (!repoTitle || !isPaused) return;
+    if (!repoTitle || !isPaused || !buildId) return;
 
-    if (hasStartedRef.current && hasStartedRef.current === repoTitle) return;
-    hasStartedRef.current = repoTitle;
+    if (hasStartedRef.current === buildId) return;
+    hasStartedRef.current = buildId;
 
     socket.emit("start-debug", { repo: repoTitle, build_id: buildId });
 
@@ -34,11 +33,11 @@ const DebugConsole = ({ repoTitle, isPaused }) => {
       if (terminalRef.current?.offsetWidth > 0) {
         term.open(terminalRef.current);
         term.focus();
-        term.write('\r\n');
+        term.write("\r\n");
       }
     });
 
-    term.onData(data => {
+    term.onData((data) => {
       socket.emit("console-command", {
         command: data,
         repoTitle,
@@ -59,7 +58,7 @@ const DebugConsole = ({ repoTitle, isPaused }) => {
 
   return (
     <div className={styles.container}>
-        <div className={styles.debugTitle}>
+      <div className={styles.debugTitle}>
         <img
           src={`${process.env.PUBLIC_URL}/icons/bug.png`}
           alt="BUG"

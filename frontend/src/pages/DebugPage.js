@@ -63,6 +63,7 @@ const DebugPage = () => {
 
         if (data?.logs) setLogs(data.logs.split("\n"));
         if (data?.repo_title) setRepoTitle(data.repo_title);
+        if (data?.active_stage) setActiveStage({ stage: data.active_stage, step: "" });
       } catch (err) {
         console.error("❌ Failed to fetch logs:", err);
       }
@@ -74,7 +75,6 @@ const DebugPage = () => {
     }
   }, [buildId]);
 
-  // Socket event bindings
   useEffect(() => {
     socket.on("log", (data) => {
       if (data.build_id === buildId) {
@@ -204,7 +204,7 @@ const DebugPage = () => {
           />
 
           <StreamLogs logs={logs} />
-          <DebugConsole repoTitle={repoTitle} isPaused={isPaused} />
+          <DebugConsole buildId={buildId} repoTitle={repoTitle} isPaused={isPaused} />
         </div>
       ) : (
         <div className={styles.mainContentContainer}>
