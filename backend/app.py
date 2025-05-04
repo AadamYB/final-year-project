@@ -267,7 +267,7 @@ def start_debug_session(data):
 
     socketio.emit("debug-session-started", {"build_id": build_id})
     threading.Thread(target=listen_to_bash, args=(build_id, repo), daemon=True).start()
-    
+
 @socketio.on("stop-debug")
 def stop_debug(data):
     build_id = data.get("build_id")
@@ -313,45 +313,47 @@ def handle_update_breakpoints(data):
 
 @socketio.on('console-command')
 def handle_console_command(data):
-    char = data.get('command')
+    command = data.get('command')
     repo_title = data.get('repoTitle')
-    build_id = data.get('build_id') 
 
-    if not char or not build_id:
-        emit('console-output', {'output': '❌ ERROR! Missing command or associated build_id'})
+    if not command or not repo_title:
+        emit('console-output', {'output': '❌ ERROR: Missing command or repo title'})
         return
 
-    session = bash_sessions.get(build_id)
-    if not session:
-        emit('console-output', {'output': '❌ ERROR! Debug session not active.'})
-        return
+    container_name = re.sub(r'[^a-zA-Z0-9_\-]', '', repo_title).lower() + "-container"
+    docker_command = f'docker exec -i {container_name} /bin/bash -c "{command}"'
 
-    master_fd = session["master_fd"]
-
-    # Handle cd command manually to track `cwd`
-    if char.startswith("cd "):
-        new_dir = char.strip().split("cd ")[-1].strip()
-
-        if new_dir == "..":
-            session["cwd"] = os.path.dirname(session["cwd"])
-        elif new_dir.startswith("/"):
-            session["cwd"] = new_dir
-        else:
-            session["cwd"] = os.path.normpath(os.path.join(session["cwd"], new_dir))
+    socketio.emit('console-output', {'output': f"📟 Executing: {command}"})
 
     try:
-        with session["lock"]:
-            os.write(master_fd, (char + "\n").encode())
-        
-        # After command runs, always emit updated prompt
-        user = repo_title.split("/")[-1]
-        ip = "13.40.55.105"
-        cwd = session["cwd"]
-        prompt = f"{user}@{ip} {cwd} ~$ "
-        socketio.emit("prompt-update", {"prompt": prompt}, to=request.sid)
+        process = subprocess.Popen(
+            docker_command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
 
+        # Emit standard output
+        for line in iter(process.stdout.readline, ''):
+            if line.strip():
+                socketio.emit('console-output', {'output': line.strip()})
+
+        # Emit standard error
+        for err_line in iter(process.stderr.readline, ''):
+            if err_line.strip():
+                socketio.emit('console-output', {'output': f"❌ {err_line.strip()}"})
+
+        process.stdout.close()
+        process.stderr.close()
+        process.wait()
+
+        if process.returncode == 0:
+            socketio.emit('console-output', {'output': '✅ Command finished successfully'})
+        else:
+            socketio.emit('console-output', {'output': f"❌ Command exited with code {process.returncode}"})
     except Exception as e:
-        emit('console-output', {'output': f"❌ ERROR! Exception: {str(e)}"})
+        socketio.emit('console-output', {'output': f"❌ Exception: {str(e)}"})
 
 @socketio.on('pause')
 def handle_pause(data):
