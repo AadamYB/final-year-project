@@ -16,15 +16,25 @@ const StreamLogs = ({ logs = [] }) => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
+  let inErrorBlock = false;
   return (
     <div className={styles.container}>
       <h3 className={styles.title}>Stream logs</h3>
       <div className={styles.logContent}>
-        {logs.map((line, i) => (
-          <div key={i} className={`${styles.logLine} ${getLogClass(line)}`}>
-            &gt; {line}
-          </div>
-        ))}
+        {logs.map((line, i) => {
+          const isErrorLine = line.includes("❌") 
+
+          if (isErrorLine) inErrorBlock = true;
+          const isEndOfBlock = line.trim() === "" || (/^\[.*\]/.test(line) && !isErrorLine);
+          if (inErrorBlock && isEndOfBlock) inErrorBlock = false;
+          const lineClass = inErrorBlock ? styles.error : getLogClass(line);
+
+          return (
+            <div key={i} className={`${styles.logLine} ${lineClass}`}>
+              &gt; {line}
+            </div>
+          );
+        })}
         <div ref={bottomRef} />
       </div>
     </div>
