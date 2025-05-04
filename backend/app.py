@@ -216,12 +216,24 @@ def get_all_executions():
 
 @app.route("/pipeline-config/<repo_name>", methods=["GET"])
 def get_pipeline_config(repo_name):
-    path = os.path.join(REPO_DIRECTORY, repo_name, ".ci.yml")
-    if not os.path.exists(path):
+    local_repo_path = os.path.join(REPO_DIRECTORY, repo_name)
+    
+    # Ensure repo exists & pull latest main branch - we could use the existing path which will just  grab whatever branch we are checked out on atm
+    if not os.path.exists(local_repo_path):
+        return {"error": "Repository not cloned"}, 404
+
+    try:
+        subprocess.check_output(["git", "-C", local_repo_path, "checkout", "main"])
+        subprocess.check_output(["git", "-C", local_repo_path, "pull", "origin", "main"])
+    except subprocess.CalledProcessError as e:
+        return {"error": f"Git error: {e.output.decode()}"}, 500
+
+    ci_file_path = os.path.join(local_repo_path, ".ci.yml")
+    if not os.path.exists(ci_file_path):
         return {"error": ".ci.yml not found"}, 404
 
-    with open(path, "r") as f:
-        content = f.read()
+    with open(ci_file_path, "r") as file:
+        content = file.read()
     return {"content": content}
 
 @app.route("/pipeline-config/<repo_name>", methods=["POST"])
