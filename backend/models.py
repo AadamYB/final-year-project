@@ -8,6 +8,7 @@ class Execution(database.Model):
     repo_title = database.Column(database.String, nullable=False)
     pr_name = database.Column(database.String, nullable=True)
     timestamp = database.Column(database.DateTime, nullable=False)
+    branch = database.Column(database.String)
     status = database.Column(database.String, nullable=False)
     logs = database.Column(database.Text, nullable=True)
     active_stage = database.Column(database.String, nullable=True)

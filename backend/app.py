@@ -96,6 +96,7 @@ def api_events():
                 id=build_id,
                 repo_title=repo_title,
                 pr_name=pr_title or f"PR#{pr_number}",
+                branch=pr_branch,
                 timestamp=datetime.utcnow(),
                 status="Pending",
                 breakpoints={}
@@ -200,6 +201,7 @@ def get_execution(build_id):
         "id": execution.id,
         "repo_title": execution.repo_title,
         "pr_name": execution.pr_name,
+        "branch": execution.branch,
         "timestamp": execution.timestamp.isoformat(),
         "status": execution.status,
         "logs": execution.logs or "",
