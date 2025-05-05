@@ -434,15 +434,16 @@ def handle_resume(data=None):
     build_id = data.get('build_id') if data else None
     paused_flags.pop(build_id, None)
 
-    execution = Execution.query.get(build_id)
-    if execution:
-        execution.is_paused = False
-        execution.pause_stage = None
-        execution.pause_type = None
-        database.session.commit()
-    
+    with app.app_context(): 
+        execution = Execution.query.get(build_id)
+        if execution:
+            execution.is_paused = False
+            execution.pause_stage = None
+            execution.pause_type = None
+            database.session.commit()
+
     log(f"🟢 Resume signal received! Continuing pipeline...", tag="debug", build_id=build_id)
-    threading.Thread(target=resume_pipeline, args=(build_id,), daemon=True).start()
+    threading.Thread(target=lambda: resume_pipeline_with_context(build_id), daemon=True).start()
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -790,6 +791,10 @@ def update_active_stage(build_id, stage):
     if execution:
         execution.active_stage = stage
         database.session.commit()
+
+def resume_pipeline_with_context(build_id):
+    with app.app_context():
+        resume_pipeline(build_id)
 
 def resume_pipeline(build_id):
     execution = Execution.query.get(build_id)
