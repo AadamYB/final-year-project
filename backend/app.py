@@ -228,11 +228,27 @@ def get_all_executions():
 
 @app.route("/pipeline-config/<repo_name>", methods=["GET"])
 def get_pipeline_config(repo_name):
-    path = os.path.join(REPO_DIRECTORY, repo_name, ".ci.yml")
-    if not os.path.exists(path):
+    branch = request.args.get("branch", "main")  # fallback to 'main' if not provided - but it should always be provided as we save it to the db?
+    repo_path = os.path.join(REPO_DIRECTORY, repo_name)
+
+    # Make sure the repo exists
+    if not os.path.exists(repo_path):
+        return {"error": "Repo not found"}, 404
+
+    try:
+        # Checkout the correct branch
+        subprocess.run(["git", "-C", repo_path, "fetch", "origin"], check=True)
+        subprocess.run(["git", "-C", repo_path, "checkout", branch], check=True)
+        subprocess.run(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"], check=True)
+    except subprocess.CalledProcessError as e:
+        return {"error": f"Failed to checkout branch: {branch}"}, 500
+
+    # Now check if .ci.yml exists
+    ci_path = os.path.join(repo_path, ".ci.yml")
+    if not os.path.exists(ci_path):
         return {"error": ".ci.yml not found"}, 404
 
-    with open(path, "r") as f:
+    with open(ci_path, "r") as f:
         content = f.read()
     return {"content": content}
 
