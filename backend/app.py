@@ -269,6 +269,11 @@ def handle_connect():
         if execution.breakpoints:
             breakpoints_map[execution.id] = execution.breakpoints
             socketio.emit("pause-configured", {"breakpoints": execution.breakpoints, "build_id": execution.id}, to=request.sid)
+    
+        if execution.is_paused:
+            paused_flags[execution.id] = True
+            log(f"🔁 Detected paused state for {execution.id} - resuming...", tag="debug", build_id=execution.id)
+
 
 @socketio.on('start-debug')
 def start_debug_session(data):
@@ -334,16 +339,17 @@ def stop_debug(data):
 
 @socketio.on('update-breakpoints')
 def handle_update_breakpoints(data):
-    
+    build_id = data.get('build_id')
+    breakpoints = data.get('breakpoints')
+
     expected_stages = {"setup", "build", "test"}
     expected_keys = {"before", "after"}
-    build_id = data.get('build_id')
 
-    if not isinstance(data, dict):
+    if not isinstance(breakpoints, dict):
         log("❌ ERROR! Invalid breakpoint update: not a dict!", build_id=build_id)
         return
 
-    for stage, points in data.items():
+    for stage, points in breakpoints.items():
         if stage not in expected_stages or not isinstance(points, dict):
             log(f"❌ ERROR! Invalid structure in breakpoint: {stage}", build_id=build_id)
             return
@@ -353,14 +359,14 @@ def handle_update_breakpoints(data):
                 return
 
     # Save updated breakpoints
-    breakpoints_map[build_id] = data
-    log(f"✅ Breakpoints updated to: {data}", tag="debug", build_id=build_id)
+    breakpoints_map[build_id] = breakpoints
+    log(f"✅ Breakpoints updated to: {breakpoints}", tag="debug", build_id=build_id)
 
     execution = Execution.query.get(build_id)
     if execution:
-        execution.breakpoints = data
+        execution.breakpoints = breakpoints
         database.session.commit()
-    socketio.emit("breakpoints-updated", {"breakpoints": data})
+    socketio.emit("breakpoints-updated", {"breakpoints": breakpoints})
 
 @socketio.on('console-command')
 def handle_console_command(data):

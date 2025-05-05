@@ -148,26 +148,28 @@ const DebugPage = () => {
     if (isPastStage || (resumedPoint?.stage === stage && resumedPoint?.type === type)) return;
 
     setBreakpoints((prev) => {
+      const nextState = !prev[stage][type];
+    
       const updated = {
         ...prev,
         [stage]: {
           ...prev[stage],
-          [type]: !prev[stage][type],
+          [type]: nextState,
         },
       };
-
+    
       socket.emit("update-breakpoints", {
-        ...updated,
+        breakpoints: updated,
         build_id: buildId,
       });
-
-      if (isResumePoint && prev[stage][type]) {
+    
+      if (isResumePoint && nextState) {
         socket.emit("resume");
         setIsPaused(false);
         setCanEditBreakpoints(false);
         setResumedPoint({ stage, type });
       }
-
+    
       return updated;
     });
   };
