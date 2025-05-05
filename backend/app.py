@@ -456,15 +456,23 @@ def log(message, tag=None, build_id=None):
     print(formatted_msg)
     socketio.emit('log', {'log': formatted_msg, 'build_id': build_id})
 
-    if build_id:
-        if build_id not in collected_logs:
-            collected_logs[build_id] = []
-        collected_logs[build_id].append(formatted_msg)
+    if not build_id:
+        return
 
-        if build_id not in flush_threads_started:
-            flush_threads_started.add(build_id)
-            threading.Thread(target=periodically_flush_logs, args=(build_id,), daemon=True).start()
+    # Don't log to DB for replayed or finalized builds
+    execution = Execution.query.get(build_id)
+    if execution and execution.status != "Pending":
+        return  # Skip logging for passed/failed builds to avoid overwriting
 
+    if build_id not in collected_logs:
+        collected_logs[build_id] = []
+
+    collected_logs[build_id].append(formatted_msg)
+
+    if build_id not in flush_threads_started:
+        flush_threads_started.add(build_id)
+        threading.Thread(target=periodically_flush_logs, args=(build_id,), daemon=True).start()
+        
 
 def clone_or_pull(repo_url, local_repo_path, repo_title, build_id, branch):
     """ Clones a GitHub repository to a local directory or
