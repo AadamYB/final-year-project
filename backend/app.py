@@ -52,8 +52,7 @@ def api_events():
         if not event:
             return json.dumps({"message": "No event data received"}), 400
         
-        # We only want push and pull request events to get processed - otherwise ignore
-        # if event_type not in {"pull_request", "push"}:
+        # We only want pull request events to get processed - otherwise ignore
         if event_type != "pull_request":
             return json.dumps({"message": f"Ignored event type: {event_type}"}), 200
         
@@ -738,6 +737,7 @@ def load_ci_config(local_repo_path, build_id):
         raise
 
 def configure_breakpoints_from_ci(ci_config, build_id):
+    """ Reads the data from the ci_config variable and maps that to the breakpoint dictionary """
     breakpoints = {
         "setup": {"before": ci_config.get("pause_before_clone", False), "after": ci_config.get("pause_after_clone", False)},
         "build": {"before": ci_config.get("pause_before_build", False), "after": ci_config.get("pause_after_build", False)},
@@ -788,22 +788,32 @@ def run_command_with_stream_output(cmd, build_id, cwd=None, tag=None):
         raise Exception(f"Stage [{tag}] failed with exit code {process.returncode}")
     
 def update_active_stage(build_id, stage):
+    """ Updates the active stage of a pipeline execution in the database - better 
+        tracking in case page refreshes and components re-mount and lose current state """
+
     execution = Execution.query.get(build_id)
     if execution:
         execution.active_stage = stage
         database.session.commit()
 
 def get_resume_lock(build_id):
+    """ Retrieves or creates a thread-safe lock object for a given build_id """
+
     if build_id not in resume_locks:
         resume_locks[build_id] = Lock()
     return resume_locks[build_id]
 
 def resume_pipeline_with_context(build_id):
+    """ Resumes the pipeline within an application context for a 
+        specific build - prevents Run-time error(not catastrophic) """
+
     with get_resume_lock(build_id):
         with app.app_context():
             resume_pipeline(build_id)
 
 def resume_pipeline(build_id):
+    """ Handles resuming a pipeline execution from paused state based on the stage and timing(when-[bef/aft]) """
+
     execution = Execution.query.get(build_id)
     if not execution:
         log(f"❌ Cannot resume: build {build_id} not found.")
@@ -825,7 +835,7 @@ def resume_pipeline(build_id):
 
         if stage == "setup":
             if when == "before":
-                # You may want to store pr_branch in Execution if needed here
+                # TODO: May want to store pr_branch in Execution if needed here - for now the placeholder will do though
                 clone_or_pull(repo_title, local_repo_path, repo_title, build_id, "<branch>")
                 checkout_branch(local_repo_path, "<branch>", build_id)
                 if ci_config.get("lint", True):
@@ -875,6 +885,9 @@ def resume_pipeline(build_id):
         finalize_failed_build(build_id, repo_title, None, e)
 
 def pause_execution(stage, when, build_id, repo_title):
+    """ Pauses the pipeline at the specified stage and time ('before' or 'after'), 
+        allowing users to modify their breakpoints or to use the debug console.      """
+
     breakpoints = breakpoints_map.get(build_id, {})
     if not breakpoints.get(stage, {}).get(when, False):
         return
@@ -890,14 +903,16 @@ def pause_execution(stage, when, build_id, repo_title):
         database.session.commit()
 
     ensure_debug_session_started(build_id, repo_title)
-
     socketio.emit('allow-breakpoint-edit', {"stage": stage.upper(), "when": when.upper()})
     log("🔓 User can now edit future breakpoints during pause!", tag="debug", build_id=build_id)
 
     while paused_flags.get(build_id, False):
         time.sleep(0.5)
 
+
 def ensure_debug_session_started(build_id, repo):
+    """ Ensures a live debug session is running during a paused pipeline; starts one if not. """
+
     if not paused_flags.get(build_id, False):
         return
     
@@ -906,6 +921,8 @@ def ensure_debug_session_started(build_id, repo):
         start_debug_session({"repo": repo, "build_id": build_id})
 
 def generate_build_id(repo_title: str) -> str:
+    """ Generates a unique build uuid using timestamp and a shortened UUID based on the repository title. """
+
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     unique_id = uuid.uuid4().hex[:8]
     safe_repo = repo_title.replace("/", "_")
@@ -975,6 +992,9 @@ def finalize_failed_build(build_id, repo_title, check_run_id, exception):
         })
 
 def listen_to_bash(build_id, repo):
+    """ Streams real-time output from the container's bash session during a debug session.
+        and formats each line with a mock shell prompt and emits it via WebSocket. """
+    
     session = bash_sessions.get(build_id)
     if not session:
         return
@@ -983,6 +1003,7 @@ def listen_to_bash(build_id, repo):
     stdout = session["stdout"]
     ascii_shown = False
 
+    # TODO: Current Working Directory needs to be shown in the prompt - not working!!!!!
     for line in stdout:
         if line:
             user = repo.split("/")[-1]
@@ -998,7 +1019,9 @@ def listen_to_bash(build_id, repo):
     log(f"‼️ Debug session exited for {build_id}", tag="debug", build_id=build_id)
 
 def periodically_flush_logs(build_id):
-    """Efficient flushing only when logs change."""
+    """ Flushes collected logs to the database if new lines are added. Ensures 
+        logs are persisted and saved to database during live execution """
+    
     with app.app_context():
         previous_log_len = 0
         while build_id in collected_logs:
