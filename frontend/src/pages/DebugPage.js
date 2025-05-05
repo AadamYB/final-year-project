@@ -65,7 +65,16 @@ const DebugPage = () => {
         if (data?.repo_title) setRepoTitle(data.repo_title);
         if (data?.active_stage) setActiveStage({ stage: data.active_stage, step: "" });
         if (data?.is_paused) setIsPaused(true);
-        if (data?.breakpoints) setBreakpoints(data.breakpoints);
+        setBreakpoints({
+          setup: { before: false, after: false },
+          build: { before: false, after: false },
+          test: { before: false, after: false },
+          ...data.breakpoints, // overwrite defaults with server values if present
+        });
+        console.log(data)
+
+        const editableStatuses = ["Pending"];
+        setCanEditBreakpoints(editableStatuses.includes(data.status));
         
       } catch (err) {
         console.error("❌ Failed to fetch logs:", err);
@@ -137,7 +146,10 @@ const DebugPage = () => {
         },
       };
 
-      socket.emit("update-breakpoints", updated);
+      socket.emit("update-breakpoints", {
+        ...updated,
+        build_id: buildId,
+      });
 
       if (isResumePoint && prev[stage][type]) {
         socket.emit("resume");

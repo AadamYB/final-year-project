@@ -102,6 +102,10 @@ def api_events():
             database.session.add(execution)
             database.session.commit()
 
+            if build_id not in flush_threads_started: #should we get rid of the other one in get execution?
+                flush_threads_started.add(build_id)
+                threading.Thread(target=periodically_flush_logs, args=(build_id,), daemon=True).start()
+
             log(f"Received PR#{pr_number} for branch {pr_branch} in {repo_title}.", build_id=build_id)
 
             commit_sha = pr.get("head", {}).get("sha")
@@ -187,9 +191,9 @@ def get_execution(build_id):
     if not execution:
         return {"error": "Not found"}, 404
     
-    if build_id in collected_logs and build_id not in flush_threads_started:
-        flush_threads_started.add(build_id)
-        threading.Thread(target=periodically_flush_logs, args=(build_id,), daemon=True).start()
+    if build_id in collected_logs:
+        execution.logs = "\n".join(collected_logs[build_id])
+        database.session.commit()
 
     return {
         "id": execution.id,
@@ -717,6 +721,12 @@ def configure_breakpoints_from_ci(ci_config, build_id):
         "test": {"before": ci_config.get("pause_before_test", False), "after": ci_config.get("pause_after_test", False)},
     }
     breakpoints_map[build_id] = breakpoints
+
+    execution = Execution.query.get(build_id)
+    if execution:
+        execution.breakpoints = breakpoints
+        database.session.commit()
+
     log(f"Breakpoints configured: {breakpoints}", tag="debug", build_id=build_id)
     socketio.emit("pause-configured", {"breakpoints": breakpoints})
 
