@@ -235,7 +235,7 @@ const DebugPage = () => {
         </div>
       ) : (
         <div className={styles.mainContentContainer}>
-          <h1 className={styles.buildTitle}>🔍 Select a build from the left</h1>
+          <h1 className={styles.buildTitle}>Loading...</h1>
         </div>
       )}
     </div>

@@ -802,25 +802,55 @@ def resume_pipeline(build_id):
 
     local_repo_path = os.path.join(REPO_DIRECTORY, execution.repo_title.replace("/", "_"))
     stage = execution.pause_stage
+    when = execution.pause_type
     repo_title = execution.repo_title
 
-    if not stage:
-        log("⚠️ Cannot resume: pause_stage is None", tag="resume", build_id=build_id)
+    if not stage or not when:
+        log("⚠️ Cannot resume: pause_stage or pause_type is None", tag="resume", build_id=build_id)
         return
 
-    log(f"▶️ Resuming pipeline from {stage.upper()}...", tag="resume", build_id=build_id)
+    log(f"▶️ Resuming pipeline from {stage.upper()} ({when.upper()})...", tag="resume", build_id=build_id)
 
     try:
-        if stage == "build":
-            build_project(local_repo_path, repo_title, build_id)
-            run_tests(local_repo_path, repo_title, build_id)
+        ci_config = load_ci_config(local_repo_path, build_id)
+
+        if stage == "setup":
+            if when == "before":
+                # You may want to store pr_branch in Execution if needed here
+                clone_or_pull(repo_title, local_repo_path, repo_title, build_id, "<branch>")
+                checkout_branch(local_repo_path, "<branch>", build_id)
+                if ci_config.get("lint", True):
+                    lint_project(local_repo_path, build_id)
+                if ci_config.get("format", True):
+                    format_project(local_repo_path, build_id)
+                build_project(local_repo_path, repo_title, build_id)
+                run_tests(local_repo_path, repo_title, build_id)
+            elif when == "after":
+                if ci_config.get("lint", True):
+                    lint_project(local_repo_path, build_id)
+                if ci_config.get("format", True):
+                    format_project(local_repo_path, build_id)
+                build_project(local_repo_path, repo_title, build_id)
+                run_tests(local_repo_path, repo_title, build_id)
+
+        elif stage == "build":
+            if when == "before":
+                build_project(local_repo_path, repo_title, build_id)
+                run_tests(local_repo_path, repo_title, build_id)
+            elif when == "after":
+                run_tests(local_repo_path, repo_title, build_id)
+
         elif stage == "test":
-            run_tests(local_repo_path, repo_title, build_id)
+            if when == "before":
+                run_tests(local_repo_path, repo_title, build_id)
+            elif when == "after":
+                log("✅ All pipeline stages already completed.", tag="resume", build_id=build_id)
+                return
+            
         else:
-            log(f"⚠️ Cannot resume from stage '{stage}'", tag="resume", build_id=build_id)
+            log(f"⚠️ Cannot resume from unknown stage '{stage}'", tag="resume", build_id=build_id)
             return
 
-        # ✅ Clear pause info *after* resuming
         execution.is_paused = False
         execution.pause_stage = None
         execution.pause_type = None
