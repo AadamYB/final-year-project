@@ -57,7 +57,7 @@ def api_events():
         
         # is the PR closed? if so skip
         if event_type == "pull_request":
-            log(event) # debugging purposes
+            # log(event) # debugging purposes
             action = event.get("action")
             if action != "opened" and action != "synchronize":
                 return json.dumps({"message": f"Ignored PR action: {action}"}), 200
@@ -194,6 +194,7 @@ def get_execution(build_id):
         "status": execution.status,
         "logs": execution.logs or "",
         "active_stage": execution.active_stage or "",
+        "is_paused": execution.is_paused or False
     }
 
 @app.route("/executions", methods=["GET"])
@@ -398,12 +399,22 @@ def handle_pause(data):
     build_id = data.get('build_id')
     log("⏸️ Pause signal received from frontend! Pausing pipeline...", tag="debug", build_id=build_id)
 
+    execution = Execution.query.get(build_id)
+    if execution:
+        execution.is_paused = True
+        database.session.commit()
+
 @socketio.on('resume')
 def handle_resume(data=None):
     global is_paused
     is_paused = False
     build_id = data.get('build_id') if data else None
     log(f"🟢 Resume signal received! Continuing pipeline...", tag="debug", build_id=build_id)
+
+    execution = Execution.query.get(build_id)
+    if execution:
+        execution.is_paused = False
+        database.session.commit()
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -746,6 +757,11 @@ def pause_execution(stage, when, build_id, repo_title):
 
     log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!", tag="debug", build_id=build_id)
     is_paused = True
+
+    execution = Execution.query.get(build_id)
+    if execution:
+        execution.is_paused = True
+        database.session.commit()
 
     ensure_debug_session_started(build_id, repo_title)
 

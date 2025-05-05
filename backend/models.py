@@ -10,3 +10,4 @@ class Execution(database.Model):
     status = database.Column(database.String, nullable=False)
     logs = database.Column(database.Text, nullable=True)
     active_stage = database.Column(database.String, nullable=True)
+    is_paused = database.Column(database.Boolean, default=False)
