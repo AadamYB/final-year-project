@@ -431,9 +431,15 @@ def handle_pause(data):
 
 @socketio.on('resume')
 def handle_resume(data=None):
-    build_id = data.get('build_id') if data else None
-    paused_flags.pop(build_id, None)
+    build_id = None
+    if data and isinstance(data, dict):
+        build_id = data.get('build_id')
 
+    if not build_id:
+        log("❌ ERROR! Resume called with no build_id!", tag="resume")
+        return
+
+    paused_flags.pop(build_id, None)
     with app.app_context(): 
         execution = Execution.query.get(build_id)
         if execution:
