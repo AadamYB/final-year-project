@@ -433,7 +433,6 @@ def handle_pause(data):
 def handle_resume(data=None):
     build_id = data.get('build_id') if data else None
     paused_flags.pop(build_id, None)
-    log(f"🟢 Resume signal received! Continuing pipeline...", tag="debug", build_id=build_id)
 
     execution = Execution.query.get(build_id)
     if execution:
@@ -441,6 +440,9 @@ def handle_resume(data=None):
         execution.pause_stage = None
         execution.pause_type = None
         database.session.commit()
+    
+    log(f"🟢 Resume signal received! Continuing pipeline...", tag="debug", build_id=build_id)
+    threading.Thread(target=resume_pipeline, args=(build_id,), daemon=True).start()
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -788,6 +790,40 @@ def update_active_stage(build_id, stage):
     if execution:
         execution.active_stage = stage
         database.session.commit()
+
+def resume_pipeline(build_id):
+    execution = Execution.query.get(build_id)
+    if not execution:
+        log(f"❌ Cannot resume: build {build_id} not found.")
+        return
+
+    local_repo_path = os.path.join(REPO_DIRECTORY, execution.repo_title.replace("/", "_"))
+    stage = execution.pause_stage
+    repo_title = execution.repo_title
+
+    log(f"▶️ Resuming pipeline from {stage.upper()}...", tag="resume", build_id=build_id)
+
+    try:
+        if stage == "build":
+            build_project(local_repo_path, repo_title, build_id)
+            run_tests(local_repo_path, repo_title, build_id)
+        elif stage == "test":
+            run_tests(local_repo_path, repo_title, build_id)
+        else:
+            log(f"⚠️ Cannot resume from stage '{stage}'", tag="resume", build_id=build_id)
+            return
+
+        # Finish the pipeline if successful  (>_<)b
+        execution.status = "Passed"
+        database.session.commit()
+
+        socketio.emit("build-finished", {
+            "build_id": build_id,
+            "status": "Passed"
+        })
+
+    except Exception as e:
+        finalize_failed_build(build_id, repo_title, None, e)
 
 def pause_execution(stage, when, build_id, repo_title):
     breakpoints = breakpoints_map.get(build_id, {})
