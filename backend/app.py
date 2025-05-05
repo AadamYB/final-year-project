@@ -1,4 +1,4 @@
-from flask import Flask, request, json
+from flask import Flask, request, json, has_app_context
 import os
 import subprocess
 from flask_socketio import SocketIO, emit
@@ -456,7 +456,7 @@ def log(message, tag=None, build_id=None):
     print(formatted_msg)
     socketio.emit('log', {'log': formatted_msg, 'build_id': build_id})
 
-    if not build_id:
+    if not build_id or not has_app_context():
         return
 
     # Don't log to DB for replayed or finalized builds
@@ -472,7 +472,7 @@ def log(message, tag=None, build_id=None):
     if build_id not in flush_threads_started:
         flush_threads_started.add(build_id)
         threading.Thread(target=periodically_flush_logs, args=(build_id,), daemon=True).start()
-        
+
 
 def clone_or_pull(repo_url, local_repo_path, repo_title, build_id, branch):
     """ Clones a GitHub repository to a local directory or
