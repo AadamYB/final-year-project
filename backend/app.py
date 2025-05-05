@@ -21,11 +21,7 @@ database.init_app(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 REPO_DIRECTORY = "/tmp/repos"
 
-breakpoints = {
-    "setup": {"before": False, "after": False},
-    "build": {"before": False, "after": False},
-    "test": {"before": False, "after": False},
-}
+breakpoints_map = {}
 bash_sessions = {}
 debug_started_flags = {}
 collected_logs = {}
@@ -254,6 +250,8 @@ def save_pipeline_config(repo_name):
 @socketio.on('connect')
 def handle_connect():
     log("🛜 WebSocket client connected ✅")
+    for build_id, breakpoints in breakpoints_map.items():
+        socketio.emit("pause-configured", {"breakpoints": breakpoints})
 
 
 @socketio.on('start-debug')
@@ -320,24 +318,18 @@ def stop_debug(data):
 
 @socketio.on('update-breakpoints')
 def handle_update_breakpoints(data):
-    global breakpoints
-
+    
     expected_stages = {"setup", "build", "test"}
     expected_keys = {"before", "after"}
-
     build_id = data.get('build_id')
 
     if not isinstance(data, dict):
         log("❌ ERROR! Invalid breakpoint update: not a dict!", build_id=build_id)
         return
 
-    # Validate structure of the breakpoint dict & its types
     for stage, points in data.items():
-        if stage not in expected_stages:
-            log(f"❌ ERROR! Invalid stage: {stage}", build_id=build_id)
-            return
-        if not isinstance(points, dict):
-            log(f"❌ ERROR! {stage} should be a dict", build_id=build_id)
+        if stage not in expected_stages or not isinstance(points, dict):
+            log(f"❌ ERROR! Invalid structure in breakpoint: {stage}", build_id=build_id)
             return
         for key in expected_keys:
             if key not in points or not isinstance(points[key], bool):
@@ -345,9 +337,9 @@ def handle_update_breakpoints(data):
                 return
 
     # Save updated breakpoints
-    breakpoints = data
-    log(f"✅ Breakpoints updated to: {breakpoints}", tag="debug", build_id=build_id)
-    socketio.emit("breakpoints-updated", {"breakpoints": breakpoints})
+    breakpoints_map[build_id] = data
+    log(f"✅ Breakpoints updated to: {data}", tag="debug", build_id=build_id)
+    socketio.emit("breakpoints-updated", {"breakpoints": data})
 
 @socketio.on('console-command')
 def handle_console_command(data):
@@ -697,12 +689,12 @@ def load_ci_config(local_repo_path, build_id):
         raise
 
 def configure_breakpoints_from_ci(ci_config, build_id):
-    global breakpoints
     breakpoints = {
         "setup": {"before": ci_config.get("pause_before_clone", False), "after": ci_config.get("pause_after_clone", False)},
         "build": {"before": ci_config.get("pause_before_build", False), "after": ci_config.get("pause_after_build", False)},
         "test": {"before": ci_config.get("pause_before_test", False), "after": ci_config.get("pause_after_test", False)},
     }
+    breakpoints_map[build_id] = breakpoints
     log(f"Breakpoints configured: {breakpoints}", tag="debug", build_id=build_id)
     socketio.emit("pause-configured", {"breakpoints": breakpoints})
 
@@ -747,13 +739,11 @@ def update_active_stage(build_id, stage):
         database.session.commit()
 
 def pause_execution(stage, when, build_id, repo_title):
-    """ helper function that pauses an execution """
     global is_paused
-
-    # Check if the current stage needs to be paused and also when it needs to be paused
+    breakpoints = breakpoints_map.get(build_id, {})
     if not breakpoints.get(stage, {}).get(when, False):
         return
-    
+
     log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!", tag="debug", build_id=build_id)
     is_paused = True
 
@@ -762,9 +752,8 @@ def pause_execution(stage, when, build_id, repo_title):
     socketio.emit('allow-breakpoint-edit', {"stage": stage.upper(), "when": when.upper()})
     log("🔓 User can now edit future breakpoints during pause!", tag="debug", build_id=build_id)
 
-    # Loop until resume is received
     while is_paused:
-        time.sleep(0.5)  # check every half second
+        time.sleep(0.5)
 
 def ensure_debug_session_started(build_id, repo):
     if not is_paused:

@@ -5,7 +5,9 @@ import YamlEditorCard from "../Components/PipelineCards/YamlEditor/YamlEditor";
 import UploadSelectCard from "../Components/PipelineCards/UploadSelectCard/UploadSelectCard";
 import PipelineVisualiser from "../Components/PipelineCards/PiplineVisualiser/PipelineVisualiser";
 
-const DEFAULT_REPO = "AadamYB_noughts-N-crosses";
+const DEFAULT_REPO = "AadamYB_noughts-N-crosses"; // TODO: Dynamically set these based on PR or context
+const BRANCH_NAME = "feature_MiniMaxAI"; // TODO ^
+
 
 const PipelinePage = () => {
   const [yamlText, setYamlText] = useState("");
@@ -13,7 +15,7 @@ const PipelinePage = () => {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const res = await fetch(`http://13.40.55.105:5000/pipeline-config/${DEFAULT_REPO}`);
+        const res = await fetch(`http://13.40.55.105:5000/pipeline-config/${DEFAULT_REPO}?branch=${BRANCH_NAME}`);
         const data = await res.json();
         if (data?.content) setYamlText(data.content);
       } catch (err) {
