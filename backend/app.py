@@ -97,7 +97,7 @@ def api_events():
                 repo_title=repo_title,
                 pr_name=pr_title or f"PR#{pr_number}",
                 branch=pr_branch,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 status="Pending",
                 breakpoints={}
             )
@@ -153,6 +153,8 @@ def api_events():
                 execution = Execution.query.get(build_id)
                 if execution:
                     execution.status = "Passed"
+                    end_time = datetime.now(timezone.utc)
+                    execution.duration = end_time - execution.timestamp
                     # execution.active_stage = None - does this get rid of the last active stage causing the default to be setup?
                 if execution and build_id in collected_logs:
                     execution.logs = "\n".join(collected_logs[build_id])
@@ -1000,6 +1002,8 @@ def finalize_failed_build(build_id, repo_title, check_run_id, exception):
         execution = Execution.query.get(build_id)
         if execution:
             execution.status = "Failed"
+            end_time = datetime.now(timezone.utc)
+            execution.duration = end_time - execution.timestamp
         if execution and build_id in collected_logs:
             execution.logs = "\n".join(collected_logs[build_id])
             database.session.commit()

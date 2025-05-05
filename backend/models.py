@@ -1,4 +1,4 @@
-from flask_sqlalchemy import SQLAlchemy
+from flask_sqlalchemy import SQLAlchemy, Interval
 from sqlalchemy.dialects.postgresql import JSON
 
 database = SQLAlchemy()
@@ -7,7 +7,7 @@ class Execution(database.Model):
     id = database.Column(database.String, primary_key=True)
     repo_title = database.Column(database.String, nullable=False)
     pr_name = database.Column(database.String, nullable=True)
-    timestamp = database.Column(database.DateTime, nullable=False)
+    timestamp = database.Column(database.DateTime(timezone=True), nullable=False)
     branch = database.Column(database.String)
     status = database.Column(database.String, nullable=False)
     logs = database.Column(database.Text, nullable=True)
@@ -16,3 +16,4 @@ class Execution(database.Model):
     pause_stage = database.Column(database.String, nullable=True)
     pause_type = database.Column(database.String, nullable=True)
     breakpoints = database.Column(JSON, default={})
+    duration = database.Column(database.Interval, nullable=True)
