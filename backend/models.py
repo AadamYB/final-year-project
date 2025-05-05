@@ -1,4 +1,5 @@
-from flask_sqlalchemy import SQLAlchemy, Interval
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Interval
 from sqlalchemy.dialects.postgresql import JSON
 
 database = SQLAlchemy()
