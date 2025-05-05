@@ -440,14 +440,6 @@ def handle_resume(data=None):
         return
 
     paused_flags.pop(build_id, None)
-    with app.app_context(): 
-        execution = Execution.query.get(build_id)
-        if execution:
-            execution.is_paused = False
-            execution.pause_stage = None
-            execution.pause_type = None
-            database.session.commit()
-
     log(f"🟢 Resume signal received! Continuing pipeline...", tag="debug", build_id=build_id)
     threading.Thread(target=lambda: resume_pipeline_with_context(build_id), daemon=True).start()
 
@@ -812,6 +804,10 @@ def resume_pipeline(build_id):
     stage = execution.pause_stage
     repo_title = execution.repo_title
 
+    if not stage:
+        log("⚠️ Cannot resume: pause_stage is None", tag="resume", build_id=build_id)
+        return
+
     log(f"▶️ Resuming pipeline from {stage.upper()}...", tag="resume", build_id=build_id)
 
     try:
@@ -824,7 +820,10 @@ def resume_pipeline(build_id):
             log(f"⚠️ Cannot resume from stage '{stage}'", tag="resume", build_id=build_id)
             return
 
-        # Finish the pipeline if successful  (>_<)b
+        # ✅ Clear pause info *after* resuming
+        execution.is_paused = False
+        execution.pause_stage = None
+        execution.pause_type = None
         execution.status = "Passed"
         database.session.commit()
 

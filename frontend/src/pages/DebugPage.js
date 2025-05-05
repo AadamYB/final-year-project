@@ -164,7 +164,7 @@ const DebugPage = () => {
       });
     
       if (isResumePoint && nextState) {
-        socket.emit("resume");
+        socket.emit("resume", { build_id: buildId });
         setIsPaused(false);
         setCanEditBreakpoints(false);
         setResumedPoint({ stage, type });
