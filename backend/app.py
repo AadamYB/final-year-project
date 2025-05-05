@@ -270,9 +270,10 @@ def handle_connect():
             breakpoints_map[execution.id] = execution.breakpoints
             socketio.emit("pause-configured", {"breakpoints": execution.breakpoints, "build_id": execution.id}, to=request.sid)
     
-        if execution.is_paused:
+        if execution.is_paused and execution.pause_stage and execution.pause_type:
             paused_flags[execution.id] = True
             log(f"🔁 Detected paused state for {execution.id} - resuming...", tag="debug", build_id=execution.id)
+            threading.Thread(target=lambda: resume_pipeline_with_context(execution.id), daemon=True).start()
 
 
 @socketio.on('start-debug')
