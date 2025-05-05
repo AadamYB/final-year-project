@@ -96,7 +96,8 @@ def api_events():
                 repo_title=repo_title,
                 pr_name=pr_title or f"PR#{pr_number}",
                 timestamp=datetime.utcnow(),
-                status="Pending"
+                status="Pending",
+                breakpoints={}
             )
             database.session.add(execution)
             database.session.commit()
@@ -185,6 +186,10 @@ def get_execution(build_id):
     execution = Execution.query.get(build_id)
     if not execution:
         return {"error": "Not found"}, 404
+    
+    if build_id in collected_logs and build_id not in flush_threads_started:
+        flush_threads_started.add(build_id)
+        threading.Thread(target=periodically_flush_logs, args=(build_id,), daemon=True).start()
 
     return {
         "id": execution.id,
@@ -194,7 +199,8 @@ def get_execution(build_id):
         "status": execution.status,
         "logs": execution.logs or "",
         "active_stage": execution.active_stage or "",
-        "is_paused": execution.is_paused or False
+        "is_paused": execution.is_paused or False,
+        "breakpoints": execution.breakpoints or {} 
     }
 
 @app.route("/executions", methods=["GET"])
@@ -340,6 +346,11 @@ def handle_update_breakpoints(data):
     # Save updated breakpoints
     breakpoints_map[build_id] = data
     log(f"✅ Breakpoints updated to: {data}", tag="debug", build_id=build_id)
+
+    execution = Execution.query.get(build_id)
+    if execution:
+        execution.breakpoints = data
+        database.session.commit()
     socketio.emit("breakpoints-updated", {"breakpoints": data})
 
 @socketio.on('console-command')

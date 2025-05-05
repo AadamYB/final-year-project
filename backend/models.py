@@ -1,4 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.dialects.postgresql import JSON
 
 database = SQLAlchemy()
 
@@ -11,3 +12,4 @@ class Execution(database.Model):
     logs = database.Column(database.Text, nullable=True)
     active_stage = database.Column(database.String, nullable=True)
     is_paused = database.Column(database.Boolean, default=False)
+    breakpoints = database.Column(JSON, default={})

@@ -64,6 +64,9 @@ const DebugPage = () => {
         if (data?.logs) setLogs(data.logs.split("\n"));
         if (data?.repo_title) setRepoTitle(data.repo_title);
         if (data?.active_stage) setActiveStage({ stage: data.active_stage, step: "" });
+        if (data?.is_paused) setIsPaused(true);
+        if (data?.breakpoints) setBreakpoints(data.breakpoints);
+        
       } catch (err) {
         console.error("❌ Failed to fetch logs:", err);
       }
