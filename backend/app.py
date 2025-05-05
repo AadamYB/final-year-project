@@ -102,7 +102,7 @@ def api_events():
             database.session.add(execution)
             database.session.commit()
 
-            if build_id not in flush_threads_started: #should we get rid of the other one in get execution?
+            if build_id not in flush_threads_started: #TODO: should we get rid of the other one in get execution? - will try removing this...
                 flush_threads_started.add(build_id)
                 threading.Thread(target=periodically_flush_logs, args=(build_id,), daemon=True).start()
 
@@ -261,9 +261,12 @@ def save_pipeline_config(repo_name):
 @socketio.on('connect')
 def handle_connect():
     log("🛜 WebSocket client connected ✅")
-    for build_id, breakpoints in breakpoints_map.items():
-        socketio.emit("pause-configured", {"breakpoints": breakpoints})
 
+    executions = Execution.query.all()
+    for execution in executions:
+        if execution.breakpoints:
+            breakpoints_map[execution.id] = execution.breakpoints
+            socketio.emit("pause-configured", {"breakpoints": execution.breakpoints, "build_id": execution.id}, to=request.sid)
 
 @socketio.on('start-debug')
 def start_debug_session(data):
