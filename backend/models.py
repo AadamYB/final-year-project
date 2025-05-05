@@ -12,4 +12,6 @@ class Execution(database.Model):
     logs = database.Column(database.Text, nullable=True)
     active_stage = database.Column(database.String, nullable=True)
     is_paused = database.Column(database.Boolean, default=False)
+    pause_stage = database.Column(database.String, nullable=True)
+    pause_type = database.Column(database.String, nullable=True)
     breakpoints = database.Column(JSON, default={})

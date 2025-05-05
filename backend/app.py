@@ -26,7 +26,7 @@ bash_sessions = {}
 debug_started_flags = {}
 collected_logs = {}
 flush_threads_started = set()
-is_paused = False
+paused_flags = {} 
 
 DEBUG_ASCII_ART = """
 -------------------------------------\n
@@ -204,6 +204,8 @@ def get_execution(build_id):
         "logs": execution.logs or "",
         "active_stage": execution.active_stage or "",
         "is_paused": execution.is_paused or False,
+        "pause_stage": execution.pause_stage,
+        "pause_type": execution.pause_type,
         "breakpoints": execution.breakpoints or {} 
     }
 
@@ -289,7 +291,7 @@ def start_debug_session(data):
     execution = Execution.query.get(build_id)
     if execution and execution.status in {"Passed", "Failed"}:
         log(f"🕰 Replaying debug session for old build: {build_id}", tag="debug", build_id=build_id)
-    elif not is_paused:
+    elif not paused_flags.get(build_id, False):
         log("⛔️ Ignoring debug start: not paused, not replay, and no active session", tag="debug", build_id=build_id)
         return
 
@@ -367,7 +369,7 @@ def handle_console_command(data):
     build_id = data.get('buildId')
 
     execution = Execution.query.get(build_id)
-    if not is_paused and execution and execution.status in {"Passed", "Failed"}:
+    if not paused_flags.get(build_id, False) and execution and execution.status in {"Passed", "Failed"}:
         emit('console-output', {'output': '⛔️ Debug console is only available during a paused or active debug session.'})
         return
 
@@ -412,9 +414,8 @@ def handle_console_command(data):
 
 @socketio.on('pause')
 def handle_pause(data):
-    global is_paused
-    is_paused = True
     build_id = data.get('build_id')
+    paused_flags[build_id] = True
     log("⏸️ Pause signal received from frontend! Pausing pipeline...", tag="debug", build_id=build_id)
 
     execution = Execution.query.get(build_id)
@@ -424,14 +425,15 @@ def handle_pause(data):
 
 @socketio.on('resume')
 def handle_resume(data=None):
-    global is_paused
-    is_paused = False
     build_id = data.get('build_id') if data else None
+    paused_flags.pop(build_id, None)
     log(f"🟢 Resume signal received! Continuing pipeline...", tag="debug", build_id=build_id)
 
     execution = Execution.query.get(build_id)
     if execution:
         execution.is_paused = False
+        execution.pause_stage = None
+        execution.pause_type = None
         database.session.commit()
 
 @socketio.on('disconnect')
@@ -782,17 +784,18 @@ def update_active_stage(build_id, stage):
         database.session.commit()
 
 def pause_execution(stage, when, build_id, repo_title):
-    global is_paused
     breakpoints = breakpoints_map.get(build_id, {})
     if not breakpoints.get(stage, {}).get(when, False):
         return
 
     log(f"🚨 Pausing at {stage.upper()} ({when.upper()}) ... Waiting for resume command!", tag="debug", build_id=build_id)
-    is_paused = True
+    paused_flags[build_id] = True
 
     execution = Execution.query.get(build_id)
     if execution:
         execution.is_paused = True
+        execution.pause_stage = stage
+        execution.pause_type = when
         database.session.commit()
 
     ensure_debug_session_started(build_id, repo_title)
@@ -800,11 +803,11 @@ def pause_execution(stage, when, build_id, repo_title):
     socketio.emit('allow-breakpoint-edit', {"stage": stage.upper(), "when": when.upper()})
     log("🔓 User can now edit future breakpoints during pause!", tag="debug", build_id=build_id)
 
-    while is_paused:
+    while paused_flags.get(build_id, False):
         time.sleep(0.5)
 
 def ensure_debug_session_started(build_id, repo):
-    if not is_paused:
+    if not paused_flags.get(build_id, False):
         return
     
     session = bash_sessions.get(build_id)

@@ -64,7 +64,17 @@ const DebugPage = () => {
         if (data?.logs) setLogs(data.logs.split("\n"));
         if (data?.repo_title) setRepoTitle(data.repo_title);
         if (data?.active_stage) setActiveStage({ stage: data.active_stage, step: "" });
-        if (data?.is_paused) setIsPaused(true);
+        if (data?.is_paused) {
+          setIsPaused(true);
+
+          if (data.pause_stage && data.pause_type) {
+            setResumeTarget({
+              stage: data.pause_stage.toLowerCase(),
+              type: data.pause_type.toLowerCase(),
+            });
+          }
+
+        }
         setBreakpoints({
           setup: { before: false, after: false },
           build: { before: false, after: false },
