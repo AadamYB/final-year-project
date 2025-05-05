@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Pipeline from './pages/Pipeline';
 import DebugPage from './pages/DebugPage';
 import MenuBar from './Components/MenuBar.js';
+import NavigateToLastOrFirstBuild from './Components/DebugCards/NavigateToLastBuild.js';
 
 console.log('Imported styles:', styles);
 
@@ -19,6 +20,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard Repo_name={"REPO NAME"}/>} /> {/*UPDATE THE REPO NAME HERE*/}
           <Route path="/pipeline-config" element={<Pipeline />} />
           <Route path="/debug/:buildId" element={<DebugPage />} />
+          <Route path="/debug" element={<NavigateToLastOrFirstBuild />} />
         </Routes>
       </div>
     </Router>
