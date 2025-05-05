@@ -1,13 +1,22 @@
 import React from "react";
 import styles from "./PipelineVisualiser.module.css";
 
-const stages = ["Build", "Test", "Stage", "Deploy"]; //change this to accomodate backend later
+// const stages = ["Build", "Test", "Stage", "Deploy"]; //change this to accomodate backend later
 
-const PipelineVisualiser = () => {
+const PipelineVisualiser = ({ stages }) => {
+  if (!stages?.length) {
+    return (
+      <div className={styles.card}>
+        <h3>Pipeline Visualiser</h3>
+        <p className={styles.empty}>No stages configured.</p>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.card}>
         <h3>Pipeline Visualiser</h3>
-
+        
         <div className={styles.internalContainer}>
             <div className={styles.flow}>
                 {stages.map((stage, i) => (
