@@ -15,7 +15,7 @@ const PipelinePage = () => {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const res = await fetch(`http://13.40.55.105:5000/pipeline-config/${DEFAULT_REPO}?branch=${BRANCH_NAME}`);
+        const res = await fetch(`http://35.177.242.182:5000/pipeline-config/${DEFAULT_REPO}?branch=${BRANCH_NAME}`);
         const data = await res.json();
         if (data?.content) setYamlText(data.content);
       } catch (err) {
@@ -44,7 +44,7 @@ const PipelinePage = () => {
   // 💾 Server-side save function
   const saveConfig = async () => {
     try {
-      const res = await fetch(`http://13.40.55.105:5000/pipeline-config/${DEFAULT_REPO}`, {
+      const res = await fetch(`http://35.177.242.182:5000/pipeline-config/${DEFAULT_REPO}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: yamlText }),

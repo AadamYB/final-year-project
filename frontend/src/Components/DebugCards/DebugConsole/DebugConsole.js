@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from "react";
 import styles from "./DebugConsole.module.css";
 import io from "socket.io-client";
 
-const socket = io("http://13.40.55.105:5000");
+const socket = io("http://35.177.242.182:5000");
 
 const DebugConsole = ({ buildId, repoTitle, isPaused }) => {
   const [input, setInput] = useState("");
   const [history, setHistory] = useState([]);
-  const [prompt, setPrompt] = useState("user@13.40.55.105:~$ ");
+  const [prompt, setPrompt] = useState("user@35.177.242.182:~$ ");
   const inputRef = useRef();
   const bottomRef = useRef();
   const hasStartedRef = useRef(null);

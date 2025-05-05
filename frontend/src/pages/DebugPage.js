@@ -7,7 +7,7 @@ import StreamLogs from "../Components/DebugCards/StreamLogs/StreamLogs";
 import DebugConsole from "../Components/DebugCards/DebugConsole/DebugConsole";
 import io from "socket.io-client";
 
-const socket = io("http://13.40.55.105:5000");
+const socket = io("http://35.177.242.182:5000");
 
 const stageOrder = ["setup", "build", "test"];
 
@@ -38,7 +38,7 @@ const DebugPage = () => {
   useEffect(() => {
     const fetchBuildList = async () => {
       try {
-        const res = await fetch("http://13.40.55.105:5000/executions");
+        const res = await fetch("http://35.177.242.182:5000/executions");
         const data = await res.json();
         setBuildData(data);
       } catch (err) {
@@ -58,7 +58,7 @@ const DebugPage = () => {
   useEffect(() => {
     const fetchExecutionData = async () => {
       try {
-        const res = await fetch(`http://13.40.55.105:5000/executions/${buildId}`);
+        const res = await fetch(`http://35.177.242.182:5000/executions/${buildId}`);
         const data = await res.json();
 
         if (data?.logs) setLogs(data.logs.split("\n"));

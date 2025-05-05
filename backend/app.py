@@ -978,7 +978,7 @@ def listen_to_bash(build_id, repo):
     for line in stdout:
         if line:
             user = repo.split("/")[-1]
-            ip = "13.40.55.105"
+            ip = "35.177.242.182"
             cwd = session["cwd"]
             prompt = f"\n{user}@{ip} {cwd} ~$ "
 
