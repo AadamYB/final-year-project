@@ -13,6 +13,9 @@ from threading import Lock
 import uuid
 import github_checks_helper as ghChecks
 from models import database, Execution
+import matplotlib.pyplot as plt
+import io
+import base64
 
 app = Flask(__name__)
 CORS(app, origins=["*"], supports_credentials=True)
@@ -211,7 +214,8 @@ def get_execution(build_id):
         "is_paused": execution.is_paused or False,
         "pause_stage": execution.pause_stage,
         "pause_type": execution.pause_type,
-        "breakpoints": execution.breakpoints or {} 
+        "breakpoints": execution.breakpoints or {} ,
+        **({"duration": str(execution.duration)} if execution.duration else {}) 
     }
 
 @app.route("/executions", methods=["GET"])
@@ -219,14 +223,100 @@ def get_all_executions():
     executions = Execution.query.order_by(Execution.timestamp.desc()).all()
     data = []
     for e in executions:
+        duration_str = str(e.duration) if e.duration else None
         data.append({
             "id": e.id,
             "status": e.status,
             "pr_name": e.pr_name,
             "date": e.timestamp.strftime("%d/%m/%y"),
             "time": e.timestamp.strftime("%H:%M"),
+            "duration": duration_str 
         })
     return json.dumps(data)
+
+@app.route("/dashboard-metrics", methods=["GET"])
+def get_dashboard_metrics():
+    executions = Execution.query.all()
+    
+    total_builds = len(executions)
+    failed_builds = [e for e in executions if e.status.lower() == "failed"]
+    passed_builds = [e for e in executions if e.status.lower() == "passed"]
+    pending_builds = [e for e in executions if e.status.lower() == "pending"]
+
+    failure_rate = (len(failed_builds) / total_builds) * 100 if total_builds else 0
+    active_builds = len(pending_builds)
+    pull_requests = len(set(e.pr_name for e in executions if e.pr_name))
+    releases = 0  # TODO: dynamically compute this when we have logic that works on the deploymemt - post submission work
+
+    avg_duration_seconds = sum(
+        e.duration.total_seconds() for e in executions if e.duration
+    ) / len([e for e in executions if e.duration]) if executions else 0
+
+    avg_duration_minutes = round(avg_duration_seconds / 60)
+
+    return {
+        "avg_build_time": avg_duration_minutes,
+        "failure_rate": round(failure_rate, 1),
+        "active_builds": active_builds,
+        "pull_requests": pull_requests,
+        "releases": releases
+    }
+
+@app.route("/dashboard-error-chart", methods=["GET"])
+def error_type_chart():
+    from collections import Counter
+
+    executions = Execution.query.filter(Execution.status == "Failed").all()
+
+    error_counter = Counter()
+
+    for e in executions:
+        logs = e.logs or ""
+        lines = logs.splitlines()
+
+        for line in lines:
+            lower = line.lower()
+
+            # CURRENT work around for getting error types
+            # TODO: Use a defined Exception that extends the class - our own exception classes?
+            if "undefined-variable" in lower:
+                error_counter["Undefined Variable"] += 1
+            elif "your code has been rated at" in lower or "pylint" in lower:
+                error_counter["Lint Error"] += 1
+            elif "would reformat" in lower or "💥 💔 💥" in lower:
+                error_counter["Format Error"] += 1
+            elif "assert" in lower and "==" in lower:
+                error_counter["Assertion Error"] += 1
+            elif "traceback" in lower or "exception:" in lower:
+                error_counter["Runtime Error"] += 1
+            elif "exit code" in lower:
+                error_counter["Build Error"] += 1
+            elif "syntaxerror" in lower:
+                error_counter["Syntax Error"] += 1
+            elif "failed" in lower and "tests" in lower:
+                error_counter["Test Failure"] += 1
+
+    # Fallback for no data
+    if not error_counter:
+        error_counter["No Errors"] = 1
+
+    # Plotting
+    fig, ax = plt.subplots()
+    ax.bar(error_counter.keys(), error_counter.values())
+    ax.set_title("Common Pipeline Errors")
+    ax.set_ylabel("Occurrences")
+    ax.set_xlabel("Error Type")
+    plt.xticks(rotation=45)
+
+    buf = io.BytesIO()
+    plt.tight_layout()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+
+    img_base64 = base64.b64encode(buf.read()).decode("utf-8")
+    buf.close()
+
+    return {"image": img_base64}
 
 @app.route("/pipeline-config/<repo_name>", methods=["GET"])
 def get_pipeline_config(repo_name):
