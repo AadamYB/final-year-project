@@ -27,6 +27,8 @@ debug_started_flags = {}
 collected_logs = {}
 flush_threads_started = set()
 paused_flags = {} 
+resume_locks = {}
+
 
 DEBUG_ASCII_ART = """
 -------------------------------------\n
@@ -271,10 +273,10 @@ def handle_connect():
             socketio.emit("pause-configured", {"breakpoints": execution.breakpoints, "build_id": execution.id}, to=request.sid)
     
         if execution.is_paused and execution.pause_stage and execution.pause_type:
-            paused_flags[execution.id] = True
-            log(f"🔁 Detected paused state for {execution.id} - resuming...", tag="debug", build_id=execution.id)
-            threading.Thread(target=lambda: resume_pipeline_with_context(execution.id), daemon=True).start()
-
+            if not paused_flags.get(execution.id):
+                paused_flags[execution.id] = True
+                log(f"🔁 Detected paused state for {execution.id} - resuming...", tag="debug", build_id=execution.id)
+                threading.Thread(target=lambda: resume_pipeline_with_context(execution.id), daemon=True).start()
 
 @socketio.on('start-debug')
 def start_debug_session(data):
@@ -791,9 +793,15 @@ def update_active_stage(build_id, stage):
         execution.active_stage = stage
         database.session.commit()
 
+def get_resume_lock(build_id):
+    if build_id not in resume_locks:
+        resume_locks[build_id] = Lock()
+    return resume_locks[build_id]
+
 def resume_pipeline_with_context(build_id):
-    with app.app_context():
-        resume_pipeline(build_id)
+    with get_resume_lock(build_id):
+        with app.app_context():
+            resume_pipeline(build_id)
 
 def resume_pipeline(build_id):
     execution = Execution.query.get(build_id)
