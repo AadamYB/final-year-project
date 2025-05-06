@@ -16,6 +16,8 @@ from models import database, Execution
 import matplotlib.pyplot as plt
 import io
 import base64
+import re
+from collections import Counter
 
 app = Flask(__name__)
 CORS(app, origins=["*"], supports_credentials=True)
@@ -224,13 +226,41 @@ def get_all_executions():
     data = []
     for e in executions:
         duration_str = str(e.duration) if e.duration else None
+        stage_status = []
+
+        logs = (e.logs or "").lower()
+        status = e.status.lower()
+
+        # Track what was completed
+        if "cloning" in logs or "pulling latest" in logs:
+            stage_status.append({"name": "Clone", "status": "success"})
+        if "building project" in logs:
+            stage_status.append({"name": "Build", "status": "success" if "build" not in e.active_stage else "active"})
+        if "running tests" in logs:
+            stage_status.append({"name": "Test", "status": "success" if "test" not in e.active_stage else "active"})
+
+        # Track the failed stages
+        if status == "failed":
+            if "test" in e.active_stage:
+                stage_status.append({"name": "Test", "status": "failed"})
+            elif "build" in e.active_stage:
+                stage_status.append({"name": "Build", "status": "failed"})
+            elif "setup" in e.active_stage:
+                stage_status.append({"name": "Clone", "status": "failed"})
+
+        # Handle pending builds?
+        if status == "pending":
+            if e.active_stage:
+                stage_status.append({"name": e.active_stage.capitalize(), "status": "active"})
+
         data.append({
             "id": e.id,
             "status": e.status,
             "pr_name": e.pr_name,
             "date": e.timestamp.strftime("%d/%m/%y"),
             "time": e.timestamp.strftime("%H:%M"),
-            "duration": duration_str 
+            "duration": duration_str,
+            "stage_status": stage_status
         })
     return json.dumps(data)
 
@@ -271,9 +301,6 @@ def get_dashboard_metrics():
 
 @app.route("/dashboard-error-chart", methods=["GET"])
 def error_type_chart():
-    from collections import Counter
-    import re
-
     executions = Execution.query.filter(Execution.status == "Failed").all()
     error_counter = Counter()
 
@@ -281,31 +308,38 @@ def error_type_chart():
         logs = e.logs or ""
         lines = logs.splitlines()
 
+        found_error = None
+
         for line in lines:
-            # Only consider actual ERROR-tagged logs
             if "❌" not in line and "ERROR" not in line.upper():
                 continue
 
             lower = line.lower()
 
             if "undefined-variable" in lower or "undefined variable" in lower:
-                error_counter["Undefined Variable"] += 1
+                found_error = "Undefined Variable"
             elif "pylint" in lower or "your code has been rated at" in lower:
-                error_counter["Lint Error"] += 1
+                found_error = "Lint Error"
             elif "would reformat" in lower or "black" in lower:
-                error_counter["Format Error"] += 1
+                found_error = "Format Error"
             elif "assert" in lower and "==" in lower:
-                error_counter["Assertion Error"] += 1
+                found_error = "Assertion Error"
             elif "traceback" in lower or "exception:" in lower:
-                error_counter["Runtime Error"] += 1
+                found_error = "Runtime Error"
             elif "exit code" in lower or re.search(r"exit code \d+", lower):
-                error_counter["Subprocess Error"] += 1
+                found_error = "Subprocess Error"
             elif "syntaxerror" in lower:
-                error_counter["Syntax Error"] += 1
+                found_error = "Syntax Error"
             elif "test" in lower and ("failed" in lower or "failure" in lower):
-                error_counter["Test Failure"] += 1
-            else:
-                error_counter["Unknown Error"] += 1
+                found_error = "Test Failure"
+
+            if found_error:
+                break  # stop after first match
+
+        if not found_error:
+            found_error = "Unknown Error"
+
+        error_counter[found_error] += 1
 
     if not error_counter:
         error_counter["No Errors Detected"] = 1
