@@ -7,7 +7,8 @@ import NumericCard from "../Components/DashboardCards/NumericCard/NumericCard";
 import BuildCard from "../Components/DashboardCards/BuildCard/BuildCard";
 import PipelineTable from "../Components/DashboardCards/tableCard/pipelineTable";
 
-const Dashboard = ({ Repo_name }) => {
+const Dashboard = () => {
+  const [RepoName,  setRepoName] = useState("Repo Name");
   const [builds, setBuilds] = useState([]);
   const [pipelineTableData, setPipelineTableData] = useState([]);
   const [metrics, setMetrics] = useState({
@@ -33,8 +34,12 @@ const Dashboard = ({ Repo_name }) => {
     const fetchBuilds = async () => {
       try {
         const res = await fetch("http://35.177.242.182:5000/executions");
-        const data = await res.json();
+        const data = await res.json();        
         setBuilds(data);
+        console.log(data)
+
+        setRepoName(builds[0].repo_title)
+        
       } catch (err) {
         console.error("❌ Failed to fetch builds:", err);
       }
@@ -86,7 +91,7 @@ const Dashboard = ({ Repo_name }) => {
   return (
     <div className={styles.page}>
       <div className={styles.headerSection}>
-        <h1>{Repo_name}</h1>
+        <h1>{RepoName}</h1>
           <Select
             className={styles.filter}
             options={options}
