@@ -38,8 +38,8 @@ const Dashboard = () => {
         setBuilds(data);
         console.log(data)
 
-        setRepoName(builds[0].repo_title)
-        
+        setRepoName(data[0].repo_title)
+
       } catch (err) {
         console.error("❌ Failed to fetch builds:", err);
       }
