@@ -1,148 +1,181 @@
-import React from "react";
+// 📍 FRONTEND UPDATE - Add error chart with filters
+import React, { useState, useEffect } from "react";
 import styles from "../styles/Dashboard.module.css";
 import Select from "react-select";
 import SemiCircularProgressBar from "../Components/DashboardCards/ProgressBar/SemiCircularProgressBar";
 import NumericCard from "../Components/DashboardCards/NumericCard/NumericCard";
 import BuildCard from "../Components/DashboardCards/BuildCard/BuildCard";
+import PipelineTable from "../Components/DashboardCards/tableCard/pipelineTable";
 
 const Dashboard = ({ Repo_name }) => {
+  const [builds, setBuilds] = useState([]);
+  const [pipelineTableData, setPipelineTableData] = useState([]);
+  const [metrics, setMetrics] = useState({
+    avg_build_time: 0,
+    failure_rate: 0,
+    active_builds: 0,
+    pull_requests: 0,
+    releases: 0,
+  });
+  const [errorChart, setErrorChart] = useState(null);
+  const [selectedRange, setSelectedRange] = useState(null);
+
   const options = [
-    { value: "fifteen-mins", label: "Last 15 minutes" },
-    { value: "one-hour", label: "Last 60 minutes" },
-    { value: "three-hours", label: "Last 3 hours" },
-    { value: "twelve-hours", label: "Last 12 hours" },
-    { value: "one-day", label: "Last 24 hours" },
-    { value: "seven-days", label: "Last 7 days" },
+    { value: "15m", label: "Last 15 minutes" },
+    { value: "1h", label: "Last 60 minutes" },
+    { value: "3h", label: "Last 3 hours" },
+    { value: "12h", label: "Last 12 hours" },
+    { value: "1d", label: "Last 24 hours" },
+    { value: "7d", label: "Last 7 days" },
   ];
+
+  useEffect(() => {
+    const fetchBuilds = async () => {
+      try {
+        const res = await fetch("http://35.177.242.182:5000/executions");
+        const data = await res.json();
+        setBuilds(data);
+      } catch (err) {
+        console.error("❌ Failed to fetch builds:", err);
+      }
+    };
+
+    const fetchMetrics = async () => {
+      try {
+        const res = await fetch("http://35.177.242.182:5000/dashboard-metrics");
+        const data = await res.json();
+        setMetrics(data);
+      } catch (err) {
+        console.error("❌ Failed to fetch metrics:", err);
+      }
+    };
+
+    fetchBuilds();
+    fetchMetrics();
+  }, []);
+
+  useEffect(() => {
+    const fetchErrorChart = async () => {
+      try {
+        const url = new URL("http://35.177.242.182:5000/dashboard-error-chart");
+        if (selectedRange) url.searchParams.append("range", selectedRange);
+        const res = await fetch(url);
+        const data = await res.json();
+        setErrorChart(data.image);
+      } catch (err) {
+        console.error("❌ Failed to fetch error chart:", err);
+      }
+    };
+    fetchErrorChart();
+  }, [selectedRange]);
+
+  useEffect(() => {
+    const fetchPipelineTableData = async () => {
+      try {
+        const res = await fetch("http://35.177.242.182:5000/executions-with-stages");
+        const data = await res.json();
+        setPipelineTableData(data); // Assuming you have a separate state
+      } catch (err) {
+        console.error("❌ Failed to fetch pipeline table data:", err);
+      }
+    };
+  
+    fetchPipelineTableData();
+  }, []);
+
   return (
-    <div>
+    <div className={styles.page}>
       <div className={styles.headerSection}>
         <h1>{Repo_name}</h1>
-        <Select
-          className={styles.filter}
-          options={options}
-          placeholder="Filter"
-        />
+          <Select
+            className={styles.filter}
+            options={options}
+            placeholder="Filter"
+            onChange={(selected) => setSelectedRange(selected.value)}
+          />
       </div>
 
       <div className={styles.section}>
         <div className={styles.listContainer}>
-          <BuildCard
-            status="Pending"
-            prName="random name name"
-            date="20/12/25"
-            time="10:13"
-          />
-          <BuildCard
-            status="Passed"
-            prName="random name name"
-            date="20/12/25"
-            time="10:13"
-          />
-          <BuildCard
-            status="Failed"
-            prName="random name name"
-            date="20/12/25"
-            time="10:13"
-          />
-          <BuildCard
-            status="Passed"
-            prName="random name name"
-            date="20/12/25"
-            time="10:13"
-          />
-          <BuildCard
-            status="Pending"
-            prName="random name name"
-            date="20/12/25"
-            time="10:13"
-          />
-          <BuildCard
-            status="Passed"
-            prName="random name name"
-            date="20/12/25"
-            time="10:13"
-          />
+          {builds.map((build) => (
+            <BuildCard
+              key={build.id}
+              status={build.status}
+              prName={build.pr_name}
+              date={build.date}
+              time={build.time}
+            />
+          ))}
         </div>
 
         <div className={styles.container}>
-          <div className={styles.progressBarContainer}>
-            <h1>unit-tests</h1>
+            <h1>Avg Build Time</h1>
             <SemiCircularProgressBar
-              value={5}
-              gauge="Low"
+              value={metrics.avg_build_time}
+              gauge={
+                metrics.avg_build_time <= 5
+                  ? "Low"
+                  : metrics.avg_build_time <= 15
+                  ? "Moderate"
+                  : "High"
+              }
               unit="mins"
               denominator="60"
             />
-          </div>
         </div>
 
         <div className={styles.container}>
-          <div className={styles.progressBarContainer}>
-            <h1>failure rate</h1>
+            <h1>Failure Rate</h1>
             <SemiCircularProgressBar
-              value={60}
-              gauge="Moderate"
+              value={metrics.failure_rate}
+              gauge={
+                metrics.failure_rate < 30
+                  ? "Low"
+                  : metrics.failure_rate < 60
+                  ? "Moderate"
+                  : "High"
+              }
               unit="%"
               denominator="100"
             />
-          </div>
         </div>
 
         <div className={styles.container}>
-          <div className={styles.progressBarContainer}>
-            <h1>integration-tests</h1>
-            <SemiCircularProgressBar
-              value={90}
-              gauge="High"
-              unit="mins"
-              denominator="100"
-            />
-          </div>
+          <NumericCard label="Active Builds" value={metrics.active_builds} />
         </div>
 
         <div className={styles.container}>
-          <div className={styles.progressBarContainer}>
-            <h1>lint</h1>
-            <SemiCircularProgressBar
-              value={11}
-              gauge="Very High"
-              unit="mins"
-              denominator="12"
-            />
-          </div>
+          <NumericCard label="Pull Requests" value={metrics.pull_requests} />
         </div>
 
         <div className={styles.container}>
-          <div className={styles.progressBarContainer}>
-            <h1>Avg Build Time</h1>
-            <SemiCircularProgressBar
-              value={17}
-              gauge="Moderate"
-              unit="mins"
-              denominator="33"
-            />
-          </div>
+          <NumericCard label="Releases" value={metrics.releases} />
         </div>
 
         <div className={styles.container}>
-          <NumericCard label="Active Builds" value={5} />
+          <NumericCard label="Failed Builds" value={metrics.failed_builds} />
         </div>
 
         <div className={styles.container}>
-          <NumericCard label="Releases" value={1} />
+          <NumericCard label="Passed Builds" value={metrics.passed_builds} />
         </div>
 
         <div className={styles.container}>
-          <NumericCard label="Pull Requests" value={21} />
+          <NumericCard label="Total Builds" value={metrics.total_builds} />
         </div>
+
       </div>
 
       <div className={styles.section2}>
-        <div className={styles.pipelineContainer}></div>
+        <div className={styles.pipelineContainer}>
+          <PipelineTable builds={pipelineTableData} />
+        </div>
 
-        <div className={styles.barChartContainer}></div>
+        <div className={styles.barChartContainer}>
+          {errorChart && <img src={`data:image/png;base64,${errorChart}`} alt="Error Chart" className={styles.errorChart} />}
+        </div>
       </div>
+
     </div>
   );
 };

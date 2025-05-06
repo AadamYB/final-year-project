@@ -1,9 +1,8 @@
 /* PROGRESS BAR CSS */
 .progressBarContainer{
     display: flex;
+    flex-direction: column;
     position: relative;
-    margin-left: 25px;
-    margin-right: 25px;
-    margin-top: 25px;
+    margin-top: 2px;
   }
   

@@ -1,21 +1,13 @@
-/* Container for all the metrics in the second section */
-.container {
-    width: 230px;
-    height: 230px;
-    border-radius: 24px;
-    background: #535353;
+.page {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    margin-top: 10px;
-}
-
-
-/* Section for progress bar items – uses a flexible grid */
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
 
 .headerSection {
-    grid-column: 2;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -24,6 +16,20 @@
     background: #858585;
     padding: 10px;
 }
+
+/* Container for all the metrics in the second section */
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+    background: #535353;
+    border-radius: 24px;
+    padding: 1rem;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
 
 /* Filter button/dropdown css styling*/
 .filter{
@@ -42,12 +48,13 @@
 .section {
     grid-column: 2;
     display: grid;
-    grid-template-columns: auto auto auto auto auto;
+    grid-template-columns: repeat(5, 1fr);
     gap: 10px;
     background: #858585;
     border-radius: 20px;
     margin: 10px;
     padding: 10px;
+    overflow-y: hidden;
 }
 
 /* Headings inside .section */
@@ -60,24 +67,22 @@
 .listContainer {
     grid: 1;
     grid-row: span 2;
-    width: 270px;
-    height: 450px;
+    width: auto;
     border-radius: 24px;
     background: #535353;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    margin-top: 10px;
-    margin-left: 10px;
-    margin-bottom: 10px;
-    padding: 10px;
+    padding: 20px;
     overflow-y: auto; 
     overflow-x: hidden;
+    box-sizing: border-box;
 }
 
 /* section 2/ or the pipeline and barchart section */
 .section2 {
+    height: 40vh;
     grid-column: 2;
     display: grid;
     grid-template-columns: auto auto;
@@ -86,18 +91,33 @@
     border-radius: 20px;
     margin: 10px;
     padding: 10px;
+    box-sizing: border-box;
 }
 
-.pipelineContainer{
+.pipelineContainer {
     background: #535353;
     border-radius: 20px;
     height: 350px;
-    width: 530px;
-}
+    width: auto;
+    overflow-y: auto; /* <--- Enables scroll */
+    padding: 1rem;
+    height: 93%;
 
-.barChartContainer{
+  }
+
+  .barChartContainer {
     background: #535353;
     border-radius: 20px;
-    height: 350px;
-    width: 730px;
-}
+    padding: 1rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
+  
+  .errorChart {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 1rem;
+  }
