@@ -226,32 +226,49 @@ def get_all_executions():
     data = []
     for e in executions:
         duration_str = str(e.duration) if e.duration else None
+        data.append({
+            "id": e.id,
+            "status": e.status,
+            "pr_name": e.pr_name,
+            "date": e.timestamp.strftime("%d/%m/%y"),
+            "time": e.timestamp.strftime("%H:%M"),
+            "duration": duration_str 
+        })
+    return json.dumps(data)
+
+@app.route("/executions-with-stages", methods=["GET"])
+def get_all_executions_with_stage_status():
+    executions = Execution.query.order_by(Execution.timestamp.desc()).all()
+    data = []
+
+    for e in executions:
+        duration_str = str(e.duration) if e.duration else None
         stage_status = []
 
         logs = (e.logs or "").lower()
         status = e.status.lower()
+        active_stage = e.active_stage or ""
 
-        # Track what was completed
+        # Track completed stages
         if "cloning" in logs or "pulling latest" in logs:
             stage_status.append({"name": "Clone", "status": "success"})
         if "building project" in logs:
-            stage_status.append({"name": "Build", "status": "success" if "build" not in e.active_stage else "active"})
+            stage_status.append({"name": "Build", "status": "success" if "build" not in active_stage else "active"})
         if "running tests" in logs:
-            stage_status.append({"name": "Test", "status": "success" if "test" not in e.active_stage else "active"})
+            stage_status.append({"name": "Test", "status": "success" if "test" not in active_stage else "active"})
 
-        # Track the failed stages
+        # Track failed stages
         if status == "failed":
-            if "test" in e.active_stage:
+            if "test" in active_stage:
                 stage_status.append({"name": "Test", "status": "failed"})
-            elif "build" in e.active_stage:
+            elif "build" in active_stage:
                 stage_status.append({"name": "Build", "status": "failed"})
-            elif "setup" in e.active_stage:
+            elif "setup" in active_stage:
                 stage_status.append({"name": "Clone", "status": "failed"})
 
-        # Handle pending builds?
-        if status == "pending":
-            if e.active_stage:
-                stage_status.append({"name": e.active_stage.capitalize(), "status": "active"})
+        # Pending builds
+        if status == "pending" and active_stage:
+            stage_status.append({"name": active_stage.capitalize(), "status": "active"})
 
         data.append({
             "id": e.id,
@@ -262,6 +279,7 @@ def get_all_executions():
             "duration": duration_str,
             "stage_status": stage_status
         })
+
     return json.dumps(data)
 
 @app.route("/dashboard-metrics", methods=["GET"])
