@@ -229,6 +229,7 @@ def get_all_executions():
         data.append({
             "id": e.id,
             "status": e.status,
+            "repo_title": e.repo_title,
             "pr_name": e.pr_name,
             "date": e.timestamp.strftime("%d/%m/%y"),
             "time": e.timestamp.strftime("%H:%M"),
