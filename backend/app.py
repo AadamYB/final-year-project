@@ -237,16 +237,17 @@ def get_all_executions():
 @app.route("/dashboard-metrics", methods=["GET"])
 def get_dashboard_metrics():
     executions = Execution.query.all()
-    
+
     total_builds = len(executions)
     failed_builds = [e for e in executions if e.status.lower() == "failed"]
     passed_builds = [e for e in executions if e.status.lower() == "passed"]
     pending_builds = [e for e in executions if e.status.lower() == "pending"]
 
-    failure_rate = (len(failed_builds) / total_builds) * 100 if total_builds else 0
-    active_builds = len(pending_builds)
-    pull_requests = len(set(e.pr_name for e in executions if e.pr_name))
-    releases = 0  # TODO: dynamically compute this when we have logic that works on the deploymemt - post submission work
+    num_failed = len(failed_builds)
+    num_passed = len(passed_builds)
+    num_pending = len(pending_builds)
+
+    failure_rate = (num_failed / total_builds) * 100 if total_builds else 0
 
     avg_duration_seconds = sum(
         e.duration.total_seconds() for e in executions if e.duration
@@ -254,10 +255,16 @@ def get_dashboard_metrics():
 
     avg_duration_minutes = round(avg_duration_seconds / 60)
 
+    pull_requests = len(set(e.pr_name for e in executions if e.pr_name))
+    releases = 0   # TODO: dynamically compute this when we have logic that works on the deploymemt - post submission work
+
     return {
-        "avg_build_time": avg_duration_minutes,
+        "total_builds": total_builds,
+        "passed_builds": num_passed,
+        "failed_builds": num_failed,
+        "active_builds": num_pending,
         "failure_rate": round(failure_rate, 1),
-        "active_builds": active_builds,
+        "avg_build_time": avg_duration_minutes,
         "pull_requests": pull_requests,
         "releases": releases
     }
@@ -265,9 +272,9 @@ def get_dashboard_metrics():
 @app.route("/dashboard-error-chart", methods=["GET"])
 def error_type_chart():
     from collections import Counter
+    import re
 
     executions = Execution.query.filter(Execution.status == "Failed").all()
-
     error_counter = Counter()
 
     for e in executions:
@@ -275,32 +282,34 @@ def error_type_chart():
         lines = logs.splitlines()
 
         for line in lines:
+            # Only consider actual ERROR-tagged logs
+            if "❌" not in line and "ERROR" not in line.upper():
+                continue
+
             lower = line.lower()
 
-            # CURRENT work around for getting error types
-            # TODO: Use a defined Exception that extends the class - our own exception classes?
-            if "undefined-variable" in lower:
+            if "undefined-variable" in lower or "undefined variable" in lower:
                 error_counter["Undefined Variable"] += 1
-            elif "your code has been rated at" in lower or "pylint" in lower:
+            elif "pylint" in lower or "your code has been rated at" in lower:
                 error_counter["Lint Error"] += 1
-            elif "would reformat" in lower or "💥 💔 💥" in lower:
+            elif "would reformat" in lower or "black" in lower:
                 error_counter["Format Error"] += 1
             elif "assert" in lower and "==" in lower:
                 error_counter["Assertion Error"] += 1
             elif "traceback" in lower or "exception:" in lower:
                 error_counter["Runtime Error"] += 1
-            elif "exit code" in lower:
-                error_counter["Build Error"] += 1
+            elif "exit code" in lower or re.search(r"exit code \d+", lower):
+                error_counter["Subprocess Error"] += 1
             elif "syntaxerror" in lower:
                 error_counter["Syntax Error"] += 1
-            elif "failed" in lower and "tests" in lower:
+            elif "test" in lower and ("failed" in lower or "failure" in lower):
                 error_counter["Test Failure"] += 1
+            else:
+                error_counter["Unknown Error"] += 1
 
-    # Fallback for no data
     if not error_counter:
-        error_counter["No Errors"] = 1
+        error_counter["No Errors Detected"] = 1
 
-    # Plotting
     fig, ax = plt.subplots()
     ax.bar(error_counter.keys(), error_counter.values())
     ax.set_title("Common Pipeline Errors")
