@@ -391,6 +391,7 @@ def error_type_chart():
     buf = io.BytesIO()
     plt.tight_layout()
     plt.savefig(buf, format="png")
+    plt.close(fig)
     buf.seek(0)
 
     img_base64 = base64.b64encode(buf.read()).decode("utf-8")
