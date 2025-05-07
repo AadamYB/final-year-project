@@ -383,7 +383,7 @@ def error_type_chart():
         error_counter[found_error] += 1
 
     if not error_counter:
-        error_counter["No Errors Detected"] = 1
+        error_counter["No Errors Detected"] = 0
 
     fig, ax = plt.subplots()
     ax.bar(error_counter.keys(), error_counter.values())
