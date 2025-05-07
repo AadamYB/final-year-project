@@ -4,7 +4,7 @@ import subprocess
 from flask_socketio import SocketIO, emit
 import yaml
 from datetime import datetime, timezone
-import time
+import time, timedelta
 import re
 import threading
 import pty
@@ -222,7 +222,12 @@ def get_execution(build_id):
 
 @app.route("/executions", methods=["GET"])
 def get_all_executions():
-    executions = Execution.query.order_by(Execution.timestamp.desc()).all()
+    range_val = request.args.get("range")
+    query = Execution.query.order_by(Execution.timestamp.desc())
+    if range_val:
+        query = filter_by_range(query, range_val)
+    executions = query.all()
+
     data = []
     for e in executions:
         duration_str = str(e.duration) if e.duration else None
@@ -239,37 +244,47 @@ def get_all_executions():
 
 @app.route("/executions-with-stages", methods=["GET"])
 def get_all_executions_with_stage_status():
-    executions = Execution.query.order_by(Execution.timestamp.desc()).all()
-    data = []
+    range_val = request.args.get("range")
+    query = Execution.query.order_by(Execution.timestamp.desc())
+    if range_val:
+        query = filter_by_range(query, range_val)
+    executions = query.all()
 
+    data = []
     for e in executions:
         duration_str = str(e.duration) if e.duration else None
         stage_status = []
 
         logs = (e.logs or "").lower()
         status = e.status.lower()
-        active_stage = e.active_stage or ""
+        active_stage = (e.active_stage or "").lower()
 
-        # Track completed stages
+        # Track Setup stage (was: "Clone")
         if "cloning" in logs or "pulling latest" in logs:
-            stage_status.append({"name": "Clone", "status": "success"})
+            setup_status = "success"
+            if status == "pending" and active_stage == "setup":
+                setup_status = "active"
+            if status == "failed" and active_stage == "setup":
+                setup_status = "failed"
+            stage_status.append({"name": "Setup", "status": setup_status})
+
+        # Track Build stage
         if "building project" in logs:
-            stage_status.append({"name": "Build", "status": "success" if "build" not in active_stage else "active"})
+            build_status = "success"
+            if status == "pending" and active_stage == "build":
+                build_status = "active"
+            if status == "failed" and active_stage == "build":
+                build_status = "failed"
+            stage_status.append({"name": "Build", "status": build_status})
+
+        # Track Test stage
         if "running tests" in logs:
-            stage_status.append({"name": "Test", "status": "success" if "test" not in active_stage else "active"})
-
-        # Track failed stages
-        if status == "failed":
-            if "test" in active_stage:
-                stage_status.append({"name": "Test", "status": "failed"})
-            elif "build" in active_stage:
-                stage_status.append({"name": "Build", "status": "failed"})
-            elif "setup" in active_stage:
-                stage_status.append({"name": "Clone", "status": "failed"})
-
-        # Pending builds
-        if status == "pending" and active_stage:
-            stage_status.append({"name": active_stage.capitalize(), "status": "active"})
+            test_status = "success"
+            if status == "pending" and active_stage == "test":
+                test_status = "active"
+            if status == "failed" and active_stage == "test":
+                test_status = "failed"
+            stage_status.append({"name": "Test", "status": test_status})
 
         data.append({
             "id": e.id,
@@ -285,7 +300,11 @@ def get_all_executions_with_stage_status():
 
 @app.route("/dashboard-metrics", methods=["GET"])
 def get_dashboard_metrics():
-    executions = Execution.query.all()
+    range_val = request.args.get("range")
+    query = Execution.query
+    if range_val:
+        query = filter_by_range(query, range_val)
+    executions = query.all()
 
     total_builds = len(executions)
     failed_builds = [e for e in executions if e.status.lower() == "failed"]
@@ -1210,6 +1229,20 @@ def periodically_flush_logs(build_id):
                         previous_log_len = len(current_logs)
                     except Exception as e:
                         log(f"⚠️ Could not flush logs: {e}", tag="debug", build_id=build_id)
+
+def filter_by_range(query, range_val):
+    now = datetime.utcnow()
+    ranges = {
+        "15m": now - timedelta(minutes=15),
+        "1h": now - timedelta(hours=1),
+        "3h": now - timedelta(hours=3),
+        "12h": now - timedelta(hours=12),
+        "1d": now - timedelta(days=1),
+        "7d": now - timedelta(days=7),
+    }
+    if range_val in ranges:
+        return query.filter(Execution.timestamp >= ranges[range_val])
+    return query
 
 # ------------------------------------------------------------
 
