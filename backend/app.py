@@ -250,7 +250,9 @@ def get_all_executions_with_stage_status():
         query = filter_by_range(query, range_val)
     executions = query.all()
 
+    STAGES = ["setup", "build", "test"]
     data = []
+
     for e in executions:
         duration_str = str(e.duration) if e.duration else None
         stage_status = []
@@ -259,32 +261,29 @@ def get_all_executions_with_stage_status():
         status = e.status.lower()
         active_stage = (e.active_stage or "").lower()
 
-        # Track Setup stage (was: "Clone")
-        if "cloning" in logs or "pulling latest" in logs:
-            setup_status = "success"
-            if status == "pending" and active_stage == "setup":
-                setup_status = "active"
-            if status == "failed" and active_stage == "setup":
-                setup_status = "failed"
-            stage_status.append({"name": "Setup", "status": setup_status})
+        current_index = STAGES.index(active_stage) if active_stage in STAGES else -1
 
-        # Track Build stage
-        if "building project" in logs:
-            build_status = "success"
-            if status == "pending" and active_stage == "build":
-                build_status = "active"
-            if status == "failed" and active_stage == "build":
-                build_status = "failed"
-            stage_status.append({"name": "Build", "status": build_status})
+        for i, stage in enumerate(STAGES):
+            name = stage.capitalize()
+            state = "pending"
 
-        # Track Test stage
-        if "running tests" in logs:
-            test_status = "success"
-            if status == "pending" and active_stage == "test":
-                test_status = "active"
-            if status == "failed" and active_stage == "test":
-                test_status = "failed"
-            stage_status.append({"name": "Test", "status": test_status})
+            if i < current_index:
+                state = "success"
+            elif i == current_index:
+                if status == "pending":
+                    state = "active"
+                elif status == "failed":
+                    state = "failed"
+                else:
+                    state = "success"
+            elif status == "failed" and active_stage == stage:
+                state = "failed"
+            elif status == "passed":
+                state = "success"
+
+            # Only add stages that were reached or relevant
+            if state != "pending":
+                stage_status.append({"name": name, "status": state})
 
         data.append({
             "id": e.id,

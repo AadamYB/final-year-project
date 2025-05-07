@@ -50,6 +50,7 @@ const Dashboard = () => {
         const res = await fetch("http://35.177.242.182:5000/dashboard-metrics");
         const data = await res.json();
         setMetrics(data);
+        console.log(data)
       } catch (err) {
         console.error("❌ Failed to fetch metrics:", err);
       }
@@ -79,6 +80,7 @@ const Dashboard = () => {
       try {
         const res = await fetch("http://35.177.242.182:5000/executions-with-stages");
         const data = await res.json();
+        console.log(data)
         setPipelineTableData(data); // Assuming you have a separate state
       } catch (err) {
         console.error("❌ Failed to fetch pipeline table data:", err);
