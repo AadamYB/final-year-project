@@ -390,7 +390,6 @@ def error_type_chart():
     ax.set_title("Common Pipeline Errors")
     ax.set_ylabel("Occurrences")
     ax.set_xlabel("Error Type")
-    plt.xticks(rotation=45)
 
     buf = io.BytesIO()
     plt.tight_layout()
