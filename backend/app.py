@@ -338,7 +338,11 @@ def get_dashboard_metrics():
 
 @app.route("/dashboard-error-chart", methods=["GET"])
 def error_type_chart():
-    executions = Execution.query.filter(Execution.status == "Failed").all()
+    range_val = request.args.get("range")
+    query = Execution.query.filter(Execution.status == "Failed")
+    if range_val:
+        query = filter_by_range(query, range_val)
+    executions = query.all()
     error_counter = Counter()
 
     for e in executions:

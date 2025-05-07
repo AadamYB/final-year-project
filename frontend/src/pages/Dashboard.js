@@ -31,34 +31,42 @@ const Dashboard = () => {
   ];
 
   useEffect(() => {
-    const fetchBuilds = async () => {
+    const fetchAllDashboardData = async () => {
       try {
-        const res = await fetch("http://35.177.242.182:5000/executions");
-        const data = await res.json();        
-        setBuilds(data);
-        console.log(data)
-
-        setRepoName(data[0].repo_title)
-
+        const buildUrl = new URL("http://35.177.242.182:5000/executions");
+        const metricsUrl = new URL("http://35.177.242.182:5000/dashboard-metrics");
+        const stagesUrl = new URL("http://35.177.242.182:5000/executions-with-stages");
+  
+        if (selectedRange) {
+          buildUrl.searchParams.append("range", selectedRange);
+          metricsUrl.searchParams.append("range", selectedRange);
+          stagesUrl.searchParams.append("range", selectedRange);
+        }
+  
+        const [buildsRes, metricsRes, stagesRes] = await Promise.all([
+          fetch(buildUrl),
+          fetch(metricsUrl),
+          fetch(stagesUrl)
+        ]);
+  
+        const buildsData = await buildsRes.json();
+        const metricsData = await metricsRes.json();
+        const stagesData = await stagesRes.json();
+  
+        setBuilds(buildsData);
+        if (buildsData.length > 0) {
+          setRepoName(buildsData[0].repo_title);
+        }
+  
+        setMetrics(metricsData);
+        setPipelineTableData(stagesData);
       } catch (err) {
-        console.error("❌ Failed to fetch builds:", err);
+        console.error("❌ Failed to fetch dashboard data:", err);
       }
     };
-
-    const fetchMetrics = async () => {
-      try {
-        const res = await fetch("http://35.177.242.182:5000/dashboard-metrics");
-        const data = await res.json();
-        setMetrics(data);
-        console.log(data)
-      } catch (err) {
-        console.error("❌ Failed to fetch metrics:", err);
-      }
-    };
-
-    fetchBuilds();
-    fetchMetrics();
-  }, []);
+  
+    fetchAllDashboardData();
+  }, [selectedRange]);
 
   useEffect(() => {
     const fetchErrorChart = async () => {
@@ -78,17 +86,18 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchPipelineTableData = async () => {
       try {
-        const res = await fetch("http://35.177.242.182:5000/executions-with-stages");
+        const url = new URL("http://35.177.242.182:5000/executions-with-stages");
+        if (selectedRange) url.searchParams.append("range", selectedRange);
+        const res = await fetch(url);
         const data = await res.json();
-        console.log(data)
-        setPipelineTableData(data); // Assuming you have a separate state
+        setPipelineTableData(data);
       } catch (err) {
         console.error("❌ Failed to fetch pipeline table data:", err);
       }
     };
   
     fetchPipelineTableData();
-  }, []);
+  }, [selectedRange]);
 
   return (
     <div className={styles.page}>

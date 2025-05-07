@@ -17,10 +17,10 @@ const PipelineTable = ({ builds }) => {
             </tr>
           </thead>
           <tbody>
-            {builds.map((build) => (
+            {builds.map((build) => ( // TODO: Deploy has yet to be implemented
               <tr key={build.id}>
                 <td>{build.pr_name}</td>
-                {["Clone", "Build", "Test", "Deploy"].map((stage) => {
+                {["Setup", "Build", "Test", "Deploy"].map((stage) => {
                   const stageObj = build.stage_status?.find((s) => s.name === stage);
                   const status = stageObj?.status;
 
