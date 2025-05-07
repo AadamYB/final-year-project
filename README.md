@@ -123,3 +123,12 @@ This system is hosted on an EC2 instance (Ubuntu), running:
 
 ---
 
+## Developer Usage
+
+Using this repository as a developer:
+  - First you would need access to the EC2 instance by running an ssh request in you terminal
+  - The command would resemble ssh -i "Path/to/key-pair.pem" ec2-user@ip-address
+  - And once inside the instance you would want to clone this repository on the server
+  - After this we cd final-year-project/backend/ and run the following
+  - " gunicorn --worker-class eventlet -w 1 wsgi:application --bind 0.0.0.0:5000 "
+  - And this would lauch the backend server - you are ready to cd into frontend and run npm install + npm start to view the webpage on the localhost client
