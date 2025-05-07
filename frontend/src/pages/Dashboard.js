@@ -22,6 +22,7 @@ const Dashboard = () => {
   const [selectedRange, setSelectedRange] = useState(null);
 
   const options = [
+    { value: null, label: "Default" },
     { value: "15m", label: "Last 15 minutes" },
     { value: "1h", label: "Last 60 minutes" },
     { value: "3h", label: "Last 3 hours" },
