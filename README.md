@@ -123,7 +123,3 @@ This system is hosted on an EC2 instance (Ubuntu), running:
 
 ---
 
-## About
-
-**Author:** AadamYB  
-**Contact:** aadam.y.boakye@gmail.com
