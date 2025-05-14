@@ -81,6 +81,8 @@ def api_events():
         
         build_id = generate_build_id(repo_title) # KEY AS THIS IS PASSED TO EVERYTHING
 
+        now = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/London"))
+        print("CHECKING Local time:", now.isoformat())
 
         log(f"🔧 Build session started with ID: {build_id}", tag="debug", build_id=build_id)
 
