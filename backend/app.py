@@ -5,6 +5,7 @@ from flask_socketio import SocketIO, emit
 import yaml
 from datetime import datetime, timezone, timedelta
 import time
+from zoneinfo import ZoneInfo
 import re
 import threading
 import pty
@@ -95,14 +96,14 @@ def api_events():
                 "repo_title": repo_title,
                 "pr_name": pr_title or f"PR#{pr_number}",
                 "status": "Pending",
-                "timestamp": datetime.now(timezone.utc).astimezone().isoformat()
+                "timestamp": datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/London")).isoformat()
             })
             execution = Execution(
                 id=build_id,
                 repo_title=repo_title,
                 pr_name=pr_title or f"PR#{pr_number}",
                 branch=pr_branch,
-                timestamp=datetime.now(timezone.utc).astimezone(),
+                timestamp=datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/London")),
                 status="Pending",
                 breakpoints={}
             )
@@ -158,7 +159,7 @@ def api_events():
                 execution = Execution.query.get(build_id)
                 if execution:
                     execution.status = "Passed"
-                    end_time = datetime.now(timezone.utc).astimezone()
+                    end_time = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/London"))
                     execution.duration = end_time - execution.timestamp
                     # execution.active_stage = None - does this get rid of the last active stage causing the default to be setup?
                 if execution and build_id in collected_logs:
@@ -448,7 +449,7 @@ def save_pipeline_config(repo_name):
         current_branch = subprocess.check_output(["git", "-C", local_repo_path, "rev-parse", "--abbrev-ref", "HEAD"],text=True).strip()
 
         subprocess.check_output(["git", "-C", local_repo_path, "add", ".ci.yml"])
-        
+
         status = subprocess.check_output(["git", "-C", local_repo_path, "status", "--porcelain"], text=True).strip()
         if not status:
             return {"status": "no changes"}  # No changes to commit
@@ -660,7 +661,7 @@ def handle_disconnect():
 
 def log(message, tag=None, build_id=None):
     """ Utility function that prints and emits the string message with a timestamp """
-    timestamp = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/London")).strftime("%Y-%m-%d %H:%M:%S")
     formatted_msg = f"[{timestamp}] {'[{}] '.format(tag.upper()) if tag else ''}{message}"
 
     print(formatted_msg)
@@ -1181,7 +1182,7 @@ def finalize_failed_build(build_id, repo_title, check_run_id, exception):
         execution = Execution.query.get(build_id)
         if execution:
             execution.status = "Failed"
-            end_time = datetime.now(timezone.utc).astimezone()
+            end_time = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/London"))
             execution.duration = end_time - execution.timestamp
         if execution and build_id in collected_logs:
             execution.logs = "\n".join(collected_logs[build_id])
