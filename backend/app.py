@@ -448,6 +448,11 @@ def save_pipeline_config(repo_name):
         current_branch = subprocess.check_output(["git", "-C", local_repo_path, "rev-parse", "--abbrev-ref", "HEAD"],text=True).strip()
 
         subprocess.check_output(["git", "-C", local_repo_path, "add", ".ci.yml"])
+        
+        status = subprocess.check_output(["git", "-C", local_repo_path, "status", "--porcelain"], text=True).strip()
+        if not status:
+            return {"status": "no changes"}  # No changes to commit
+
         subprocess.check_output(["git", "-C", local_repo_path, "commit", "-m", "🔧 Update .ci.yml via pipeline configurator"])
         subprocess.check_output(["git", "-C", local_repo_path, "push", "origin", current_branch])
     except subprocess.CalledProcessError as e:
