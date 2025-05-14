@@ -95,14 +95,14 @@ def api_events():
                 "repo_title": repo_title,
                 "pr_name": pr_title or f"PR#{pr_number}",
                 "status": "Pending",
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).astimezone().isoformat()
             })
             execution = Execution(
                 id=build_id,
                 repo_title=repo_title,
                 pr_name=pr_title or f"PR#{pr_number}",
                 branch=pr_branch,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(timezone.utc).astimezone(),
                 status="Pending",
                 breakpoints={}
             )
@@ -158,7 +158,7 @@ def api_events():
                 execution = Execution.query.get(build_id)
                 if execution:
                     execution.status = "Passed"
-                    end_time = datetime.now(timezone.utc)
+                    end_time = datetime.now(timezone.utc).astimezone()
                     execution.duration = end_time - execution.timestamp
                     # execution.active_stage = None - does this get rid of the last active stage causing the default to be setup?
                 if execution and build_id in collected_logs:
@@ -655,7 +655,7 @@ def handle_disconnect():
 
 def log(message, tag=None, build_id=None):
     """ Utility function that prints and emits the string message with a timestamp """
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
     formatted_msg = f"[{timestamp}] {'[{}] '.format(tag.upper()) if tag else ''}{message}"
 
     print(formatted_msg)
@@ -1176,7 +1176,7 @@ def finalize_failed_build(build_id, repo_title, check_run_id, exception):
         execution = Execution.query.get(build_id)
         if execution:
             execution.status = "Failed"
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(timezone.utc).astimezone()
             execution.duration = end_time - execution.timestamp
         if execution and build_id in collected_logs:
             execution.logs = "\n".join(collected_logs[build_id])
